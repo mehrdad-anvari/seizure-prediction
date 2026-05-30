@@ -126,4 +126,4 @@ def auc_trapz(x: np.ndarray, y: np.ndarray) -> float:
     y = np.asarray(y, dtype=float)
     if x.size < 2:
         return 0.0
-    return float(np.trapz(y, x))
+    return float(np.trapezoid(y, x))
