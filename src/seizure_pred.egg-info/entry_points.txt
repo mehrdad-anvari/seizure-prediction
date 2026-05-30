@@ -1,2 +1,0 @@
-[console_scripts]
-seizure-pred = seizure_pred.cli.main:main
