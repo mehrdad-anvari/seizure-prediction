@@ -12,10 +12,12 @@ __pycache__/
 venv/
 .env
 .ipynb_checkpoints/
+*.egg-info/
+dist/
 
 # Data (keep small samples only)
 backups/
-data/
+data/BIDS_CHB-MIT
 dataset/output/
 runs/
 *.npz

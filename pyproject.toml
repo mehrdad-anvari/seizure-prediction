@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "seizure-pred"
+version = "0.2.0"
+description = "Seizure prediction and detection library (CHB-MIT and related datasets)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [{name = "OCTA"}]
+
+dependencies = [
+  "numpy",
+  "pandas",
+  "torch",
+  "tqdm",
+]
+
+[project.optional-dependencies]
+train = ["pytest", "pyyaml", "scikit-learn"]
+viz = ["matplotlib"]
+eeg = ["mne", "mne-connectivity"]
+signal = ["scipy"]
+gnn = [
+  "torch-geometric>=2.4",
+]
+
+[project.scripts]
+seizure-pred = "seizure_pred.cli.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"seizure_pred" = ["models/**/*.mat", "models/**/*.npy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

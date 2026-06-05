@@ -1,0 +1,44 @@
+# Minimal config for the built-in synthetic dataset (runs on CPU)
+
+task: prediction
+seed: 1
+device: cpu
+epochs: 2
+amp: false
+log_every: 10
+save_dir: runs
+run_name: synthetic_demo
+
+data:
+  name: synthetic
+  task: prediction
+  batch_size: 32
+  num_workers: 0
+  pin_memory: false
+  persistent_workers: false
+  kwargs:
+    n: 256
+    c: 8
+    t: 64
+    pos_frac: 0.25
+    seed: 1
+
+model:
+  name: simple_cnn
+  num_classes: 2
+  in_channels: 8
+  kwargs: {}
+
+loss:
+  name: bce_logits
+  kwargs: {}
+
+optim:
+  name: adam
+  lr: 0.001
+  weight_decay: 0.0
+  kwargs: {}
+
+sched:
+  name: null
+  kwargs: {}

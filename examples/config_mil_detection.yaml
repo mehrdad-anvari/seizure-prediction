@@ -1,0 +1,39 @@
+task: detection
+seed: 42
+device: cuda
+epochs: 5
+amp: true
+grad_clip_norm: 1.0
+log_every: 10
+save_dir: runs
+run_name: mil_det_demo
+
+data:
+  name: chbmit_npz
+  dataset_dir: data/BIDS_CHB-MIT
+  subject_id: "01"
+  task: detection
+  batch_size: 8
+  num_workers: 4
+  use_uint16: false
+  suffix: fd_5s_szx5_prex5
+
+model:
+  name: simple_cnn
+  num_classes: 1
+  kwargs: {}
+
+loss:
+  name: mil_bce_logits
+  kwargs:
+    aggregation: max
+
+optim:
+  name: adam
+  lr: 0.001
+  weight_decay: 0.0
+  kwargs: {}
+
+sched:
+  name: null
+  kwargs: {}

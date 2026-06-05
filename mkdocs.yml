@@ -1,0 +1,12 @@
+site_name: seizure-pred
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - Install: install.md
+  - CLI: cli.md
+  - API: api.md
+  - Extending: extending.md
+  - Run artifacts: run_artifacts.md
+  - Predictions schema: PREDICTIONS_SCHEMA.md
+  - Migration: migration.md
