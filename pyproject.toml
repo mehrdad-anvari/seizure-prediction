@@ -16,16 +16,15 @@ dependencies = [
   "pandas",
   "torch",
   "tqdm",
+  "einops",
+  "scipy"
 ]
 
 [project.optional-dependencies]
-train = ["pytest", "pyyaml", "scikit-learn"]
+dev = ["pytest"]
+train = ["pyyaml", "scikit-learn"]
 viz = ["matplotlib"]
 eeg = ["mne", "mne-connectivity"]
-signal = ["scipy"]
-gnn = [
-  "torch-geometric>=2.4",
-]
 
 [project.scripts]
 seizure-pred = "seizure_pred.cli.main:main"
