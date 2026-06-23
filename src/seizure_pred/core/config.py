@@ -9,6 +9,21 @@ SchedStep = Literal["epoch", "step"]
 
 @dataclass
 class DataConfig:
+    """Configuration for data loading and preprocessing.
+
+    Attributes:
+        name: Name of the dataset builder plugin (e.g., "chbmit_npz", "synthetic").
+        dataset_dir: Path to the root BIDS/preprocessed dataset directory.
+        subject_id: Subject ID to train/evaluate on (e.g., "01").
+        use_uint16: Whether to load preprocessed float data scaled to uint16 (to save memory).
+        suffix: Suffix pattern for matching preprocessed files (e.g., "fd_5s_szx5_prex5").
+        task: Target task type ("prediction" or "detection").
+        batch_size: Minibatch size for training and evaluation.
+        num_workers: Number of CPU workers for dataloader multiprocessing.
+        pin_memory: Whether to copy tensors into CUDA pinned memory.
+        persistent_workers: Whether dataloader workers remain alive between epochs.
+        kwargs: Additional dataset-specific builder keyword arguments.
+    """
     name: str = "chbmit_npz"
     dataset_dir: str = "data/BIDS_CHB-MIT"
     subject_id: str = "01"
@@ -24,6 +39,15 @@ class DataConfig:
 
 @dataclass
 class ModelConfig:
+    """Configuration for the neural network model.
+
+    Attributes:
+        name: Name of the model plugin registered in the MODELS registry (e.g., "simple_cnn", "eegwavenet").
+        num_classes: Number of classification target classes (usually 1 for binary logits).
+        in_channels: Number of input signal channels (inferred from data if None).
+        sfreq: Signal sampling frequency in Hz (inferred if None).
+        kwargs: Additional model-specific initialization keyword arguments.
+    """
     name: str = "simple_cnn"
     num_classes: int = 2
     in_channels: Optional[int] = None
@@ -33,6 +57,14 @@ class ModelConfig:
 
 @dataclass
 class OptimConfig:
+    """Configuration for the optimizer.
+
+    Attributes:
+        name: Name of the optimizer plugin (e.g., "adam", "sgd").
+        lr: Base learning rate.
+        weight_decay: Weight decay (L2 penalty) coefficient.
+        kwargs: Additional optimizer-specific parameters.
+    """
     name: str = "adam"
     lr: float = 1e-3
     weight_decay: float = 0.0
@@ -41,6 +73,13 @@ class OptimConfig:
 
 @dataclass
 class SchedConfig:
+    """Configuration for the learning rate scheduler.
+
+    Attributes:
+        name: Name of the scheduler plugin (e.g., "cosine", "step", or null for no scheduler).
+        step: Frequency of scheduler step calls ("epoch" or "step").
+        kwargs: Additional scheduler-specific parameters.
+    """
     name: Optional[str] = None
     step: SchedStep = "epoch"
     kwargs: Dict[str, Any] = field(default_factory=dict)
@@ -48,18 +87,50 @@ class SchedConfig:
 
 @dataclass
 class LossConfig:
+    """Configuration for the loss function.
+
+    Attributes:
+        name: Name of the loss function plugin registered in LOSSES (e.g., "bce_logits", "focal").
+        kwargs: Additional loss-specific parameters.
+    """
     name: str = "bce_logits"
     kwargs: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class CallbackConfig:
+    """Configuration for training callbacks.
+
+    Attributes:
+        name: Registered name of the callback in CALLBACKS registry.
+        kwargs: Initialization keyword arguments passed to build the callback.
+    """
     name: str
     kwargs: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class TrainConfig:
+    """Overall training pipeline configuration.
+
+    Attributes:
+        task: Problem type, either "prediction" (preictal vs interictal) or "detection" (seizure vs non-seizure).
+        seed: Random seed for repeatability.
+        device: Target execution device (e.g., "cuda", "cpu").
+        epochs: Number of complete epochs to train.
+        grad_clip_norm: Maximum gradient norm for clipping (disabled if None).
+        amp: Whether to use Automatic Mixed Precision (FP16) training.
+        log_every: Step frequency for training progress logging.
+        val_every: Epoch frequency for validation evaluation.
+        save_dir: Base directory for saving training run folders.
+        run_name: Custom run tag/prefix.
+        data: Nested dataset configuration.
+        model: Nested model configuration.
+        loss: Nested loss configuration.
+        optim: Nested optimizer configuration.
+        sched: Nested learning rate scheduler configuration.
+        callbacks: List of callback configurations to instantiate.
+    """
     task: TaskType = "prediction"
     seed: int = 42
     device: str = "cuda"

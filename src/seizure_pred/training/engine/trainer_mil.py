@@ -36,6 +36,19 @@ class TrainerMIL:
         callbacks: Optional[list[Any]] = None,
         device: Optional[str] = None,
     ) -> None:
+        """Initialize the Multiple Instance Learning (MIL) Trainer.
+
+        Args:
+            model: PyTorch neural network module (MIL aggregator or model).
+            loss_fn: Criterion/loss module.
+            optimizer: PyTorch optimizer instance.
+            scheduler: Optional learning rate scheduler.
+            cfg: Resolved training configuration.
+            run_dir: Path to save run outputs, logs, and checkpoints.
+            artifact_writer: Optional custom ArtifactWriter.
+            callbacks: Optional list of callback instances.
+            device: Optional target device string (defaults to cuda/cpu configured in cfg).
+        """
         self.cfg = cfg
         self.model = model
         self.loss_fn = loss_fn
@@ -56,6 +69,16 @@ class TrainerMIL:
             pass
 
     def fit(self, *, train_loader: DataLoader, val_loader: DataLoader, write_best_predictions: bool = True) -> str:
+        """Execute the full MIL training and validation loop.
+
+        Args:
+            train_loader: Dataloader yielding training bags.
+            val_loader: Dataloader yielding validation bags.
+            write_best_predictions: Whether to save predicted probabilities for the best epoch.
+
+        Returns:
+            The file path to the best saved model checkpoint.
+        """
         state: Dict[str, Any] = {"trainer": self, "epoch": 0, "best_val_loss": float("inf")}
         self.callbacks.on_train_start(state)
 
@@ -146,6 +169,15 @@ class TrainerMIL:
         return best_ckpt_path or last_ckpt_path
 
     def _train_one_epoch(self, train_loader: DataLoader, state: Dict[str, Any]) -> float:
+        """Run a single epoch of MIL training optimization steps over train_loader.
+
+        Args:
+            train_loader: Training DataLoader.
+            state: The shared training state dictionary.
+
+        Returns:
+            Average training loss over the epoch.
+        """
         self.model.train()
         losses = []
 
@@ -179,6 +211,16 @@ class TrainerMIL:
 
     @torch.no_grad()
     def evaluate(self, val_loader: DataLoader, state: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Perform evaluation/validation on the provided MIL dataloader.
+
+        Args:
+            val_loader: Evaluation DataLoader.
+            state: Optional shared training state dictionary for callback hooks.
+
+        Returns:
+            Dictionary containing computed metrics (e.g., loss, acc, auc, f1), 
+            along with raw logits, targets, and metadata.
+        """
         self.model.eval()
         losses = []
         logits_all = []
