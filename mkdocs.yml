@@ -7,6 +7,13 @@ nav:
   - CLI: cli.md
   - API: api.md
   - Extending: extending.md
+  - Plugin Guide: plugin_guide.md
+  - Data Contracts: data_contracts.md
+  - Config Validation: config_validation.md
+  - Reproducibility: determinism.md
+  - Experiments: experiments.md
   - Run artifacts: run_artifacts.md
-  - Predictions schema: PREDICTIONS_SCHEMA.md
+  - Predictions schema: predictions_schema.md
+  - Trainer Contract: trainer_contract.md
   - Migration: migration.md
+  - Analysis Migration: analysis_migration.md
