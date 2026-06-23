@@ -23,6 +23,45 @@ def _meta_to_jsonable(meta: Any) -> Any:
     return meta
 
 
+def _to_binary_logits(raw: torch.Tensor) -> torch.Tensor:
+    """Normalize model output to shape (B,) binary logits.
+
+    Supported outputs:
+      - (B,)             -> returned as-is
+      - (B,1)            -> squeeze dim=1
+      - (B,2)            -> convert to single binary logit using (logit1 - logit0)
+      - (B,*,...)        -> tries to squeeze/flatten conservatively
+    """
+    if not isinstance(raw, torch.Tensor):
+        raw = torch.as_tensor(raw)
+
+    if raw.ndim == 1:
+        return raw
+
+    if raw.ndim == 2:
+        if raw.shape[1] == 1:
+            return raw[:, 0]
+        if raw.shape[1] == 2:
+            return raw[:, 1] - raw[:, 0]
+        if raw.shape[0] == 1:
+            return raw.reshape(-1)
+        raise ValueError(f"Expected binary logits with shape (B,), (B,1) or (B,2) but got {tuple(raw.shape)}")
+
+    # Higher-dim: try squeezing singleton dims after batch.
+    x = raw
+    while x.ndim > 1 and x.shape[1] == 1:
+        x = x.squeeze(1)
+    if x.ndim == 1:
+        return x
+    # As a last resort, flatten everything except batch then reduce if 2-class.
+    x2 = x.reshape(x.shape[0], -1)
+    if x2.shape[1] == 1:
+        return x2[:, 0]
+    if x2.shape[1] == 2:
+        return x2[:, 1] - x2[:, 0]
+    raise ValueError(f"Could not coerce logits to binary: got {tuple(raw.shape)}")
+
+
 @torch.no_grad()
 def predict(
     model: torch.nn.Module,
@@ -87,8 +126,7 @@ def predict(
             logits = logits.logits
 
         # Ensure shape: (B,)
-        if logits.dim() > 1:
-            logits = logits.view(logits.size(0), -1).squeeze(-1)
+        logits = _to_binary_logits(logits)
 
         probs = _sigmoid(logits)
         y_pred = (probs >= threshold).to(torch.int64)
