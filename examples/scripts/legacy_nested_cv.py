@@ -217,11 +217,21 @@ def main() -> None:
     )
     logger.info("[legacy_nested_cv] outer_folds=%d", len(outer_splits))
 
+    import pickle
+    cv_results = {"outer_folds": []}
+
     for outer_i, (train_val_set, test_set) in enumerate(outer_splits, start=1):
         outer_dir = os.path.join(run_root, f"outer_{outer_i}")
         os.makedirs(outer_dir, exist_ok=True)
         logger_outer = setup_logging(outer_dir)
         logger_outer.info("===== OUTER FOLD %d/%d =====", outer_i, len(outer_splits))
+
+        fold_data = {
+            "outer_fold": outer_i,
+            "test_indices": test_set.base_indices.tolist() if hasattr(test_set, "base_indices") else [],
+            "y_test": test_set.y.tolist() if hasattr(test_set, "y") else [],
+            "inner_folds": []
+        }
 
         inner_splits = list(
             make_cv_splitter(
@@ -277,6 +287,14 @@ def main() -> None:
             best_ckpt = trainer.fit(train_loader=train_loader, val_loader=val_loader)
             logger_split.info("best_ckpt=%s", best_ckpt)
 
+            # Load best model weights for evaluation
+            best_val_auc = 0.0
+            if os.path.exists(best_ckpt):
+                checkpoint = torch.load(best_ckpt, map_location=trainer.device)
+                trainer.model.load_state_dict(checkpoint["model_state_dict"])
+                best_metrics = checkpoint.get("metrics", {})
+                best_val_auc = best_metrics.get("auc", 0.0)
+
             # Evaluate on the outer test set and persist predictions
             test_out = trainer.evaluate(test_loader)
             writer.write_metrics(
@@ -295,6 +313,23 @@ def main() -> None:
                 filename="test_predictions.jsonl",
             )
             logger_split.info("test_loss=%.4f test_acc=%.4f", float(test_out["loss"]), float(test_out.get("acc", float("nan"))))
+
+            test_logits = test_out["val_logits"]
+            test_probs = torch.sigmoid(test_logits).cpu().numpy()
+
+            inner_fold_data = {
+                "inner_fold": inner_i,
+                "best_val_auc": best_val_auc,
+                "test_probs": test_probs.tolist(),
+            }
+            fold_data["inner_folds"].append(inner_fold_data)
+
+        cv_results["outer_folds"].append(fold_data)
+
+    results_path = os.path.join(run_root, "raw_predictions.pkl")
+    with open(results_path, "wb") as f:
+        pickle.dump(cv_results, f)
+    logger.info("[legacy_nested_cv] Saved raw predictions to %s", results_path)
 
 
 if __name__ == "__main__":

@@ -483,11 +483,13 @@ from seizure_pred.training.registries import MODELS
 @MODELS.register("fbmsnet", help="FBMSNet baseline model.")
 def build_fbmsnet(cfg: ModelConfig):
     kw = dict(getattr(cfg, "kwargs", {}) or {})
-    in_ch = cfg.in_channels or kw.get("in_channels", kw.get("num_electrodes", 19))
-    seq_len = kw.get("chunk_size", kw.get("seq_len", 256))
+    in_ch = cfg.in_channels or kw.get("in_channels", kw.get("num_electrodes", 18))
+    seq_len = kw.get("chunk_size", kw.get("seq_len", 640))
+    nClass = int(getattr(cfg, "num_classes", 2))
+    
     return FBMSNet(
-        in_channels=int(in_ch),
-        seq_len=int(seq_len),
-        num_classes=int(getattr(cfg, "num_classes", 2)),
-        **{k:v for k,v in kw.items() if k not in {"in_channels","num_electrodes","chunk_size","seq_len"}}
+        nChan=int(in_ch),
+        nTime=int(seq_len),
+        nClass=nClass,
+        **{k:v for k,v in kw.items() if k not in {"in_channels","num_electrodes","chunk_size","seq_len","in_ch","nChan","nTime","nClass"}}
     )

@@ -209,22 +209,34 @@ from seizure_pred.training.registries import MODELS
 def build_rgnn(cfg: ModelConfig):
     kw = dict(cfg.kwargs or {})
     # Map common config fields
-    if cfg.in_channels is not None and "num_features" not in kw:
-        kw["num_features"] = cfg.in_channels
-    if cfg.num_classes is not None and "num_classes" not in kw:
-        kw["num_classes"] = cfg.num_classes
+    if "num_features" not in kw:
+        kw["num_features"] = cfg.in_channels or 5
+    if "num_classes" not in kw:
+        kw["num_classes"] = cfg.num_classes or 2
 
     # Provide a sensible default device
     if "device" not in kw:
         kw["device"] = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # RGNN needs graph definition in kwargs (edge_index, edge_weight, num_nodes)
-    missing = [k for k in ("num_nodes", "edge_index", "edge_weight", "num_hiddens", "num_layers") if k not in kw]
-    if missing:
-        raise ValueError(
-            "RGNN requires the following cfg.model.kwargs keys: "
-            + ", ".join(missing)
-            + "."
-        )
+    if "num_nodes" not in kw:
+        kw["num_nodes"] = cfg.in_channels or 18
+    num_nodes = kw["num_nodes"]
+
+    if "edge_index" not in kw or "edge_weight" not in kw:
+        from seizure_pred.models.provider import initialize_edge_weights
+        edge_index, edge_weight = initialize_edge_weights(num_nodes=num_nodes)
+        if "edge_index" not in kw:
+            kw["edge_index"] = edge_index
+        if "edge_weight" not in kw:
+            kw["edge_weight"] = edge_weight
+
+    if "num_hiddens" not in kw:
+        kw["num_hiddens"] = 64
+    if "num_layers" not in kw:
+        kw["num_layers"] = 4
+    if "dropout" not in kw:
+        kw["dropout"] = 0.1
+    if "domain_adaptation" not in kw:
+        kw["domain_adaptation"] = False
 
     return RGNN_Model(**kw)

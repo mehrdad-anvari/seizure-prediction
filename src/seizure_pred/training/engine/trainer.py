@@ -250,7 +250,13 @@ class Trainer:
 
             self.optimizer.zero_grad(set_to_none=True)
             logits = self._to_binary_logits(self.model(x))
-            loss = self.loss_fn(logits, y)
+            
+            if self.loss_fn.__class__.__name__ == "PreictalWeightedLoss":
+                temporal_weights = self._extract_temporal_weights(meta).to(self.device)
+                loss = self.loss_fn(logits, y, temporal_weights)
+            else:
+                loss = self.loss_fn(logits, y)
+                
             loss.backward()
 
             if self.cfg.grad_clip_norm:
@@ -365,3 +371,37 @@ class Trainer:
         if x2.shape[1] == 2:
             return x2[:, 1] - x2[:, 0]
         raise ValueError(f"Could not coerce logits to binary: got {tuple(raw.shape)}")
+
+    def _extract_temporal_weights(self, meta: Any) -> torch.Tensor:
+        """Extract temporal weights from metadata.
+        Supports both List[Dict] and Dict[str, List/Tensor].
+        """
+        weights = []
+        if isinstance(meta, dict):
+            labels = meta.get("label", [])
+            epoch_indices = meta.get("epoch_index_within_event", [])
+            n_segs = meta.get("n_segments_in_event", [])
+            
+            n_samples = len(labels)
+            for i in range(n_samples):
+                label_val = labels[i]
+                if label_val == "preictal":
+                    idx = int(epoch_indices[i]) if i < len(epoch_indices) else 0
+                    total = int(n_segs[i]) if i < len(n_segs) else 1
+                    weight = idx / max(total - 1, 1)
+                else:
+                    weight = 0.0
+                weights.append(weight)
+        elif isinstance(meta, list):
+            for m in meta:
+                if isinstance(m, dict) and m.get("label") == "preictal":
+                    idx = m.get("epoch_index_within_event", 0)
+                    total = m.get("n_segments_in_event", 1)
+                    weight = idx / max(total - 1, 1)
+                else:
+                    weight = 0.0
+                weights.append(weight)
+        else:
+            return torch.zeros(1)
+            
+        return torch.tensor(weights, dtype=torch.float)

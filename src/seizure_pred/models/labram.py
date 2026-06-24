@@ -520,14 +520,35 @@ def build_labram(cfg: ModelConfig) -> nn.Module:
         )
     kw = dict(getattr(cfg, "kwargs", {}) or {})
     # Common knobs
-    in_chans = int(getattr(cfg, "in_channels", kw.pop("in_chans", 18)) or 18)
-    num_classes = int(getattr(cfg, "num_classes", kw.pop("num_classes", 1)) or 1)
-    variant = str(kw.pop("variant", "base"))
+    in_chans = int(getattr(cfg, "in_channels", kw.pop("in_chans", None)) or 18)
+    num_classes = int(getattr(cfg, "num_classes", kw.pop("num_classes", None)) or 2)
+    variant = kw.pop("variant", None)
 
     if variant == "base":
         return LaBraM.base_patch200_200(in_chans=in_chans, num_classes=num_classes, **kw)
-    if variant == "large":
+    elif variant == "large":
         return LaBraM.large_patch200_200(in_chans=in_chans, num_classes=num_classes, **kw)
-    if variant == "huge":
+    elif variant == "huge":
         return LaBraM.huge_patch200_200(in_chans=in_chans, num_classes=num_classes, **kw)
-    raise ValueError(f"Unknown LaBraM variant: {variant}")
+    else:
+        # Custom/default fallback matching old provider.py:
+        if "chunk_size" not in kw:
+            kw["chunk_size"] = 640
+        if "patch_size" not in kw:
+            kw["patch_size"] = 80
+        if "embed_dim" not in kw:
+            kw["embed_dim"] = 80
+        if "depth" not in kw:
+            kw["depth"] = 6
+        if "num_heads" not in kw:
+            kw["num_heads"] = 6
+        if "mlp_ratio" not in kw:
+            kw["mlp_ratio"] = 1
+        if "init_values" not in kw:
+            kw["init_values"] = 0.1
+        if "drop_rate" not in kw:
+            kw["drop_rate"] = 0.1
+        if "electrodes" not in kw:
+            from seizure_pred.models.provider import channels
+            kw["electrodes"] = channels
+        return LaBraM(in_chans=in_chans, num_classes=num_classes, **kw)

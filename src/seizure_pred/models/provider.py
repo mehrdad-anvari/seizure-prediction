@@ -164,15 +164,49 @@ def get_builder(model: str = "CE-stSENet") -> Callable[[], nn.Module]:
 
         case "RGNN" | "rgnn":
             RGNN_Model = _import_or_raise("seizure_pred.models.rgnn", "RGNN_Model")
-            return model_builder(RGNN_Model, num_channels=18, num_classes=2)
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            edge_index, edge_weight = initialize_edge_weights(num_nodes=18)
+            return model_builder(
+                RGNN_Model,
+                device=device,
+                num_nodes=18,
+                edge_weight=edge_weight,
+                edge_index=edge_index,
+                num_features=5,
+                num_hiddens=64,
+                num_classes=2,
+                num_layers=4,
+                dropout=0.1,
+                domain_adaptation=False,
+            )
 
         case "DGCNN2" | "dgcnn2":
             DGCNN_Model = _import_or_raise("seizure_pred.models.dgcnn2", "DGCNN_Model")
-            return model_builder(DGCNN_Model, num_channels=18, num_classes=2)
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            edge_index, edge_weight = initialize_edge_weights(num_nodes=18)
+            return model_builder(
+                DGCNN_Model,
+                device=device,
+                num_nodes=18,
+                edge_weight=edge_weight,
+                edge_index=edge_index,
+                num_features=5,
+                num_hiddens=32,
+                num_classes=2,
+                num_layers=2,
+                dropout=0.0,
+            )
 
         case "DGCNN" | "dgcnn":
             DGCNN = _import_or_raise("seizure_pred.models.dgcnn", "DGCNN")
-            return model_builder(DGCNN, num_channels=18, num_classes=2)
+            return model_builder(
+                DGCNN,
+                in_channels=5,
+                num_electrodes=18,
+                num_layers=2,
+                hid_channels=32,
+                num_classes=2,
+            )
 
         case "Conformer" | "conformer":
             Conformer = _import_or_raise("seizure_pred.models.conformer.model", "Conformer")

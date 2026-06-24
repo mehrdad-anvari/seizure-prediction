@@ -187,8 +187,19 @@ class TrainerMIL:
             y = y.to(self.device).float().view(-1)
 
             self.optimizer.zero_grad(set_to_none=True)
-            logits = self.model(x).view(-1)
-            loss = self.loss_fn(logits, y)
+            
+            # Flatten bag and instance dimensions
+            B, N = x.shape[0], x.shape[1]
+            x_flat = x.view(B * N, *x.shape[2:])
+            
+            raw_logits = self.model(x_flat)
+            
+            if getattr(self.loss_fn, "needs_class_logits", False) or self.loss_fn.__class__.__name__ == "MILConfidentLoss":
+                instance_logits = raw_logits.view(B, N, -1)
+            else:
+                instance_logits = self._to_binary_logits(raw_logits).view(B, N)
+                
+            loss = self.loss_fn(instance_logits, y)
             loss.backward()
 
             if self.cfg.grad_clip_norm:
@@ -235,11 +246,27 @@ class TrainerMIL:
             x = x.to(self.device)
             y = y.to(self.device).float().view(-1)
 
-            logits = self.model(x).view(-1)
-            loss = self.loss_fn(logits, y)
+            # Flatten bag and instance dimensions
+            B, N = x.shape[0], x.shape[1]
+            x_flat = x.view(B * N, *x.shape[2:])
+            
+            raw_logits = self.model(x_flat)
+            
+            if getattr(self.loss_fn, "needs_class_logits", False) or self.loss_fn.__class__.__name__ == "MILConfidentLoss":
+                instance_logits = raw_logits.view(B, N, -1)
+                bag_probs = torch.sigmoid(instance_logits).mean(dim=1)  # (B, 2)
+                p = bag_probs[:, 1]
+                bag_logits = torch.log(p / (1 - p + 1e-8) + 1e-8)
+                loss = self.loss_fn(instance_logits, y)
+            else:
+                instance_logits = self._to_binary_logits(raw_logits).view(B, N)
+                bag_logits = self.loss_fn.agg(instance_logits)
+                if bag_logits.dim() > 1:
+                    bag_logits = bag_logits.squeeze(-1)
+                loss = self.loss_fn(instance_logits, y)
 
             losses.append(float(loss.item()))
-            logits_all.append(logits.detach().cpu())
+            logits_all.append(bag_logits.detach().cpu())
             targets_all.append(y.detach().cpu())
             meta_all.extend(meta if isinstance(meta, list) else [meta])
 
@@ -260,6 +287,36 @@ class TrainerMIL:
         st["val_out"] = out
         self.callbacks.on_val_end(st)
         return out
+
+    @staticmethod
+    def _to_binary_logits(raw: torch.Tensor) -> torch.Tensor:
+        """Normalize model output to shape (B,) binary logits."""
+        if not isinstance(raw, torch.Tensor):
+            raw = torch.as_tensor(raw)
+
+        if raw.ndim == 1:
+            return raw
+
+        if raw.ndim == 2:
+            if raw.shape[1] == 1:
+                return raw[:, 0]
+            if raw.shape[1] == 2:
+                return raw[:, 1] - raw[:, 0]
+            if raw.shape[0] == 1:
+                return raw.reshape(-1)
+            raise ValueError(f"Expected binary logits with shape (B,), (B,1) or (B,2) but got {tuple(raw.shape)}")
+
+        x = raw
+        while x.ndim > 1 and x.shape[1] == 1:
+            x = x.squeeze(1)
+        if x.ndim == 1:
+            return x
+        x2 = x.reshape(x.shape[0], -1)
+        if x2.shape[1] == 1:
+            return x2[:, 0]
+        if x2.shape[1] == 2:
+            return x2[:, 1] - x2[:, 0]
+        raise ValueError(f"Could not coerce logits to binary: got {tuple(raw.shape)}")
 
 
 # Backwards-compatible alias (older scripts imported MILTrainer)

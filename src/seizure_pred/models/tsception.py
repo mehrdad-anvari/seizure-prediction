@@ -198,11 +198,23 @@ from seizure_pred.training.registries import MODELS
 @MODELS.register("tsception", help="TSception baseline model.")
 def build_tsception(cfg: ModelConfig):
     kw = dict(getattr(cfg, "kwargs", {}) or {})
-    num_electrodes = cfg.in_channels or kw.get("num_electrodes", 19)
-    chunk_size = kw.get("chunk_size", kw.get("seq_len", 256))
+    num_classes = int(getattr(cfg, "num_classes", 2))
+    in_channels = cfg.in_channels or kw.get("num_electrodes", kw.get("in_channels", 18))
+    chunk_size = kw.get("chunk_size", kw.get("seq_len", 640))
+    input_size = (int(in_channels), int(chunk_size))
+    
+    sampling_rate = int(kw.get("sampling_rate", 256))
+    num_T = int(kw.get("num_T", 9))
+    num_S = int(kw.get("num_S", 6))
+    hidden = int(kw.get("hidden", 128))
+    dropout_rate = float(kw.get("dropout_rate", 0.2))
+    
     return TSception(
-        num_electrodes=int(num_electrodes),
-        chunk_size=int(chunk_size),
-        num_classes=int(getattr(cfg, "num_classes", 2)),
-        **{k:v for k,v in kw.items() if k not in {"num_electrodes","chunk_size","seq_len"}}
+        num_classes=num_classes,
+        input_size=input_size,
+        sampling_rate=sampling_rate,
+        num_T=num_T,
+        num_S=num_S,
+        hidden=hidden,
+        dropout_rate=dropout_rate
     )
