@@ -12,5 +12,4 @@ This project is built around **registries** (a lightweight plugin system). To ad
 - Callback: `CALLBACKS.register("name")`
 - Postprocess: `POSTPROCESSORS.register("name")`
 
-For a walkthrough, see [plugin_guide.md](plugin_guide.md).
-For starter stubs, see [src/seizure_pred/templates/](file:///e:/Projects/seizure/library/seizure-prediction/src/seizure_pred/templates/).
+For starter stubs, see `src/seizure_pred/templates/`.
