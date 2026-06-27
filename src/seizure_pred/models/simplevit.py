@@ -307,10 +307,30 @@ from seizure_pred.core.config import ModelConfig
 from seizure_pred.training.registries import MODELS
 
 @MODELS.register("simplevit", help="Imported from original seizure-prediction-main/models/simplevit.py")
+@MODELS.register("simple_vit", help="Alias for simplevit")
 def build_simplevit(cfg: ModelConfig):
     kw = dict(cfg.kwargs or {})
-    if cfg.in_channels is not None and "in_channels" not in kw:
-        kw["in_channels"] = cfg.in_channels
+    # Set default values from the old provider.py builder
+    if "chunk_size" not in kw:
+        kw["chunk_size"] = 640
+    if "grid_size" not in kw:
+        kw["grid_size"] = (9, 9)
+    if "t_patch_size" not in kw:
+        kw["t_patch_size"] = 32
+    if "s_patch_size" not in kw:
+        kw["s_patch_size"] = (3, 3)
+    if "hid_channels" not in kw:
+        kw["hid_channels"] = 32
+    if "depth" not in kw:
+        kw["depth"] = 3
+    if "heads" not in kw:
+        kw["heads"] = 4
+    if "head_channels" not in kw:
+        kw["head_channels"] = 8
+    if "mlp_channels" not in kw:
+        kw["mlp_channels"] = 32
     if cfg.num_classes is not None and "num_classes" not in kw:
         kw["num_classes"] = cfg.num_classes
+    elif "num_classes" not in kw:
+        kw["num_classes"] = 2
     return SimpleViT(**kw)

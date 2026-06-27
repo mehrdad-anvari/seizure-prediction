@@ -41,16 +41,31 @@ def inverse_mean_threshold_adjacency(dist_matrix: np.ndarray) -> np.ndarray:
 def positions_from_standard_1020(channel_names: Iterable[str]) -> np.ndarray:
     """Get approximate channel positions from MNE standard_1020 montage.
 
-    Requires `mne`. If not installed, raises ImportError.
+    Supports both monopolar channel names (e.g. 'Fp1') and bipolar channel names
+    separated by a dash (e.g. 'Fp1-F3'), case-insensitively.
     """
     import mne  # optional dependency
 
     montage = mne.channels.make_standard_montage("standard_1020")
     pos_dict = montage.get_positions()["ch_pos"]
+    
+    # Normalize keys in pos_dict to upper case for case-insensitive lookup
+    pos_dict_upper = {k.upper(): v for k, v in pos_dict.items()}
+
     pos = []
     for ch in channel_names:
-        if ch not in pos_dict:
-            raise KeyError(f"Channel '{ch}' not found in standard_1020 montage.")
-        p = pos_dict[ch]
+        ch_clean = str(ch).strip()
+        if "-" in ch_clean:
+            parts = ch_clean.split("-")
+            ch1, ch2 = parts[0].strip(), parts[1].strip()
+            p1 = pos_dict_upper.get(ch1.upper())
+            p2 = pos_dict_upper.get(ch2.upper())
+            if p1 is None or p2 is None:
+                raise KeyError(f"Bipolar channel parts '{ch1}' or '{ch2}' for '{ch_clean}' not found in standard_1020 montage.")
+            p = (p1 + p2) / 2.0
+        else:
+            p = pos_dict_upper.get(ch_clean.upper())
+            if p is None:
+                raise KeyError(f"Channel '{ch_clean}' not found in standard_1020 montage.")
         pos.append([p[0], p[1], p[2]])
     return np.asarray(pos, dtype=float)

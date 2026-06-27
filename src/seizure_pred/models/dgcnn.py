@@ -220,8 +220,10 @@ from seizure_pred.training.registries import MODELS
 @MODELS.register("dgcnn", help="Imported from original seizure-prediction-main/models/dgcnn.py")
 def build_dgcnn(cfg: ModelConfig):
     kw = dict(cfg.kwargs or {})
-    if cfg.in_channels is not None and "in_channels" not in kw:
-        kw["in_channels"] = cfg.in_channels
+    if "in_channels" not in kw:
+        kw["in_channels"] = 5
+    if "num_electrodes" not in kw:
+        kw["num_electrodes"] = cfg.in_channels or 18
     if cfg.num_classes is not None and "num_classes" not in kw:
         kw["num_classes"] = cfg.num_classes
     return DGCNN(**kw)

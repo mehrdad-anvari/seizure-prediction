@@ -48,11 +48,37 @@ def restore_checkpoint(
     map_location: str | torch.device = "cpu",
 ) -> Dict[str, Any]:
     payload = load_checkpoint(checkpoint_path, map_location=map_location)
-    model.load_state_dict(payload["model_state"])
-    if optimizer is not None and payload.get("optim_state") is not None:
-        optimizer.load_state_dict(payload["optim_state"])
-    if scheduler is not None and payload.get("sched_state") is not None:
-        scheduler.load_state_dict(payload["sched_state"])
+    
+    model_state = None
+    if isinstance(payload, dict):
+        for k in ["model_state", "model_state_dict", "state_dict", "model"]:
+            if k in payload:
+                model_state = payload[k]
+                break
+    if model_state is None:
+        model_state = payload
+    model.load_state_dict(model_state)
+
+    if optimizer is not None:
+        optim_state = None
+        if isinstance(payload, dict):
+            for k in ["optim_state", "optimizer_state_dict", "optim_state_dict", "optimizer"]:
+                if k in payload:
+                    optim_state = payload[k]
+                    break
+        if optim_state is not None:
+            optimizer.load_state_dict(optim_state)
+
+    if scheduler is not None:
+        sched_state = None
+        if isinstance(payload, dict):
+            for k in ["sched_state", "scheduler_state_dict", "sched_state_dict", "scheduler"]:
+                if k in payload:
+                    sched_state = payload[k]
+                    break
+        if sched_state is not None:
+            scheduler.load_state_dict(sched_state)
+
     return payload
 
 # Backwards-compatible alias

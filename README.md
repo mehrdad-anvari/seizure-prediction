@@ -137,6 +137,15 @@ trainer = Trainer(
 trainer.fit(train_loader=train_loader, val_loader=val_loader)
 ```
 
+For a fuller reference, see `docs/api.md`. It includes:
+
+- config fields and defaults
+- built-in datasets and dataloaders
+- data splitters for prediction and detection workflows
+- model zoo parameters and optional dependencies
+- loss, optimizer, scheduler, evaluator, and postprocess knobs
+- copyable training examples
+
 ---
 
 ## Configuration
@@ -173,7 +182,7 @@ Most extension points are **registries**. You add a new component by implementin
 - Callback: `CALLBACKS.register("name")`
 - Postprocess: `POSTPROCESSORS.register("name")`
 
-See `docs/PLUGIN_GUIDE.md` and templates in `src/seizure_pred/templates/`.
+See `docs/extending.md` and templates in `src/seizure_pred/templates/`.
 
 ---
 

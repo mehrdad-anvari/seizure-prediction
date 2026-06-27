@@ -84,7 +84,11 @@ def main() -> None:
 
     # Load checkpoint (supports common patterns)
     ckpt = torch.load(args.checkpoint, map_location=device)
-    if isinstance(ckpt, dict) and "state_dict" in ckpt:
+    if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
+        state = ckpt["model_state_dict"]
+    elif isinstance(ckpt, dict) and "model_state" in ckpt:
+        state = ckpt["model_state"]
+    elif isinstance(ckpt, dict) and "state_dict" in ckpt:
         state = ckpt["state_dict"]
     elif isinstance(ckpt, dict) and "model" in ckpt:
         state = ckpt["model"]

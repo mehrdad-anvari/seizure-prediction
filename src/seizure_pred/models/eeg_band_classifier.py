@@ -83,7 +83,7 @@ class EEGBandEmbeddingNet(nn.Module):
 class EEGBandClassifier(nn.Module):
     def __init__(self, n_classes=2, n_bands=5):
         super().__init__()
-        self.embedding_net = EEGBandEmbeddingNet(n_channels=18, n_bands=n_bands, n_output_features=16).cuda()
+        self.embedding_net = EEGBandEmbeddingNet(n_channels=18, n_bands=n_bands, n_output_features=16)
         self.classifier = nn.Sequential(
             nn.Linear(32, 32),
             nn.ReLU(),

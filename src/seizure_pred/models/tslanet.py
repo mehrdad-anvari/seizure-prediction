@@ -289,11 +289,13 @@ from seizure_pred.core.config import ModelConfig
 @MODELS.register("tslanet", help="TSLANet baseline model.")
 def build_tslanet(cfg: ModelConfig):
     kw = dict(getattr(cfg, "kwargs", {}) or {})
-    in_ch = cfg.in_channels or kw.get("in_channels", kw.get("num_electrodes", 19))
-    seq_len = kw.get("chunk_size", kw.get("seq_len", 256))
+    in_ch = cfg.in_channels or kw.get("in_channels", kw.get("num_electrodes", 18))
+    seq_len = kw.get("chunk_size", kw.get("seq_len", 640))
+    num_classes = int(getattr(cfg, "num_classes", 2))
+    
     return TSLANet(
-        in_channels=int(in_ch),
-        seq_len=int(seq_len),
-        num_classes=int(getattr(cfg, "num_classes", 2)),
-        **{k:v for k,v in kw.items() if k not in {"in_channels","num_electrodes","chunk_size","seq_len"}}
+        num_electrodes=int(in_ch),
+        chunk_size=int(seq_len),
+        num_classes=num_classes,
+        **{k:v for k,v in kw.items() if k not in {"in_channels","num_electrodes","chunk_size","seq_len","num_classes"}}
     )

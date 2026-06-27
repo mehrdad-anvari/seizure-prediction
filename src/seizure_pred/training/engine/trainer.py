@@ -37,6 +37,19 @@ class Trainer:
         callbacks: Optional[list[Any]] = None,
         device: Optional[str] = None,
     ) -> None:
+        """Initialize the standard (non-MIL) Trainer.
+
+        Args:
+            model: PyTorch neural network module.
+            loss_fn: Criterion/loss module.
+            optimizer: PyTorch optimizer instance.
+            scheduler: Optional learning rate scheduler.
+            cfg: Resolved training configuration.
+            run_dir: Path to save run outputs, logs, and checkpoints.
+            artifact_writer: Optional custom ArtifactWriter (instantiated inside if None).
+            callbacks: Optional list of callback instances.
+            device: Optional target device string (defaults to cuda/cpu configured in cfg).
+        """
         self.cfg = cfg
         self.model = model
         self.loss_fn = loss_fn
@@ -59,6 +72,16 @@ class Trainer:
             pass
 
     def fit(self, *, train_loader: DataLoader, val_loader: DataLoader, write_best_predictions: bool = True) -> str:
+        """Execute the full training and validation loop.
+
+        Args:
+            train_loader: Dataloader yielding training batches.
+            val_loader: Dataloader yielding validation batches.
+            write_best_predictions: Whether to save predicted probabilities for the best epoch.
+
+        Returns:
+            The file path to the best saved model checkpoint.
+        """
         state: Dict[str, Any] = {"trainer": self, "epoch": 0, "best_val_loss": float("inf")}
         self.callbacks.on_train_start(state)
 
@@ -208,6 +231,15 @@ class Trainer:
         return best_ckpt_path or last_ckpt_path
 
     def _train_one_epoch(self, train_loader: DataLoader, state: Dict[str, Any]) -> float:
+        """Run a single epoch of training optimization steps over train_loader.
+
+        Args:
+            train_loader: Training DataLoader.
+            state: The shared training state dictionary.
+
+        Returns:
+            Average training loss over the epoch.
+        """
         self.model.train()
         losses = []
 
@@ -218,7 +250,13 @@ class Trainer:
 
             self.optimizer.zero_grad(set_to_none=True)
             logits = self._to_binary_logits(self.model(x))
-            loss = self.loss_fn(logits, y)
+            
+            if self.loss_fn.__class__.__name__ == "PreictalWeightedLoss":
+                temporal_weights = self._extract_temporal_weights(meta).to(self.device)
+                loss = self.loss_fn(logits, y, temporal_weights)
+            else:
+                loss = self.loss_fn(logits, y)
+                
             loss.backward()
 
             if self.cfg.grad_clip_norm:
@@ -242,6 +280,16 @@ class Trainer:
 
     @torch.no_grad()
     def evaluate(self, val_loader: DataLoader, state: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Perform evaluation/validation on the provided dataloader.
+
+        Args:
+            val_loader: Evaluation DataLoader.
+            state: Optional shared training state dictionary for callback hooks.
+
+        Returns:
+            Dictionary containing computed metrics (e.g., loss, acc, auc, f1), 
+            along with raw logits, targets, and metadata.
+        """
         self.model.eval()
         losses = []
         logits_all = []
@@ -323,3 +371,37 @@ class Trainer:
         if x2.shape[1] == 2:
             return x2[:, 1] - x2[:, 0]
         raise ValueError(f"Could not coerce logits to binary: got {tuple(raw.shape)}")
+
+    def _extract_temporal_weights(self, meta: Any) -> torch.Tensor:
+        """Extract temporal weights from metadata.
+        Supports both List[Dict] and Dict[str, List/Tensor].
+        """
+        weights = []
+        if isinstance(meta, dict):
+            labels = meta.get("label", [])
+            epoch_indices = meta.get("epoch_index_within_event", [])
+            n_segs = meta.get("n_segments_in_event", [])
+            
+            n_samples = len(labels)
+            for i in range(n_samples):
+                label_val = labels[i]
+                if label_val == "preictal":
+                    idx = int(epoch_indices[i]) if i < len(epoch_indices) else 0
+                    total = int(n_segs[i]) if i < len(n_segs) else 1
+                    weight = idx / max(total - 1, 1)
+                else:
+                    weight = 0.0
+                weights.append(weight)
+        elif isinstance(meta, list):
+            for m in meta:
+                if isinstance(m, dict) and m.get("label") == "preictal":
+                    idx = m.get("epoch_index_within_event", 0)
+                    total = m.get("n_segments_in_event", 1)
+                    weight = idx / max(total - 1, 1)
+                else:
+                    weight = 0.0
+                weights.append(weight)
+        else:
+            return torch.zeros(1)
+            
+        return torch.tensor(weights, dtype=torch.float)

@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .utils import NewSGConv
+from seizure_pred.core.config import ModelConfig
+from seizure_pred.training.registries import MODELS
 
 def normalize_A(A: torch.Tensor, symmetry: bool=False) -> torch.Tensor:
     A = F.relu(A)
@@ -78,15 +80,30 @@ class DGCNN_Model(torch.nn.Module):
         x = self.fc2(x)
         return x
 
-# ---- seizure_pred registry glue ----
-from seizure_pred.core.config import ModelConfig
-from seizure_pred.training.registries import MODELS
-
 @MODELS.register("dgcnn2", help="Imported from original seizure-prediction-main/models/dgcnn2.py")
 def build_dgcnn2(cfg: ModelConfig):
     kw = dict(cfg.kwargs or {})
-    if cfg.in_channels is not None and "in_channels" not in kw:
-        kw["in_channels"] = cfg.in_channels
+    if "device" not in kw:
+        kw["device"] = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if "num_nodes" not in kw:
+        kw["num_nodes"] = cfg.in_channels or 18
+    num_nodes = kw["num_nodes"]
+
+    if "edge_index" not in kw or "edge_weight" not in kw:
+        from seizure_pred.models.provider import initialize_edge_weights
+        edge_index, edge_weight = initialize_edge_weights(num_nodes=num_nodes)
+        if "edge_index" not in kw:
+            kw["edge_index"] = edge_index
+        if "edge_weight" not in kw:
+            kw["edge_weight"] = edge_weight
+
+    if "num_features" not in kw:
+        kw["num_features"] = 5
+    if "num_hiddens" not in kw:
+        kw["num_hiddens"] = 32
+    if "num_layers" not in kw:
+        kw["num_layers"] = 2
     if cfg.num_classes is not None and "num_classes" not in kw:
         kw["num_classes"] = cfg.num_classes
-    return DGCNN2(**kw)
+
+    return DGCNN_Model(**kw)
