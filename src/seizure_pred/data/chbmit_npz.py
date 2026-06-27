@@ -17,9 +17,10 @@ from tqdm import tqdm
 from collections import defaultdict
 from sklearn import utils
 from collections import Counter
+from seizure_pred.data.base_dataset import BaseDataset
 
 
-class CHBMITDataset(Dataset):
+class CHBMITDataset(BaseDataset):
     def __init__(
         self,
         dataset_dir: str = "data/BIDS_CHB-MIT",
@@ -178,10 +179,10 @@ class SubsetWithInfo(Subset):
     def __init__(self, dataset, indices):
         super().__init__(dataset, indices)
         if isinstance(dataset, SubsetWithInfo):
-            self.base_dataset: CHBMITDataset = dataset.base_dataset
+            self.base_dataset: BaseDataset = dataset.base_dataset
             self.base_indices = np.array(dataset.base_indices)[indices]
         else:
-            self.base_dataset: CHBMITDataset = dataset
+            self.base_dataset: BaseDataset = dataset
             self.base_indices = indices
 
         self.y = self.base_dataset.y[self.base_indices]
@@ -400,7 +401,7 @@ class MilDataloader:
         return math.ceil(len(self.all_bags) / self.batch_size)
 
 
-def leave_one_out(dataset: CHBMITDataset, shuffle=False, random_state=0):
+def leave_one_out(dataset: BaseDataset, shuffle=False, random_state=0):
     """
     Cross-validation splitter.
     This function does three things:
@@ -564,7 +565,7 @@ def KFold(
       - Preictal groups are each split chronologically into n_fold strata.
         In fold i, one stratum per group becomes validation; the rest training.
       - Interictal samples are pooled, shuffled, and split globally into n_fold parts.
-      - Works with both CHBMITDataset and SubsetWithInfo.
+      - Works with both BaseDataset and SubsetWithInfo.
     Parameters
     ----------
     dataset : Dataset or Subset
