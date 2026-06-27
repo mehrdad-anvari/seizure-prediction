@@ -65,7 +65,7 @@ def run_train(args: argparse.Namespace) -> None:
     if args.dataloader is not None:
         cfg.data.kwargs = dict(cfg.data.kwargs or {})
         cfg.data.kwargs["dataloader_name"] = args.dataloader  # keep provenance
-    dl_name = args.dataloader or getattr(cfg.data, "dataloader", None) or "torch"
+    dl_name = cfg.data.dataloader_type or "torch"
 
     if args.print_config:
         print(json.dumps(asdict(cfg), indent=2, default=str))
@@ -92,7 +92,7 @@ def run_train(args: argparse.Namespace) -> None:
 
     # Build loaders via registry (factory pattern)
     # (If strict and not present -> raise with helpful registry error)
-    if args.strict and dl_name not in DATALOADERS:
+    if dl_name not in DATALOADERS:
         raise SystemExit(f"Unknown dataloader '{dl_name}'. Use `seizure-pred list`.")
 
     train_loader = build_loader(dl_name, train_set, cfg, shuffle=True)

@@ -16,6 +16,8 @@ data:
   batch_size: 32
   num_workers: 4
   use_uint16: false
+  split_method: "kfold"
+  dataloader_type: "undersample"
   suffix: fd_5s_szx5_prex5
 
 model:

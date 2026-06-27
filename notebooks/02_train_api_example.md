@@ -13,7 +13,7 @@ import seizure_pred.training as training
 from seizure_pred.core.config import TrainConfig
 from seizure_pred.training import MODELS, LOSSES, OPTIMIZERS, SCHEDULERS
 from seizure_pred.training.engine.artifacts import ArtifactWriter
-from seizure_pred.training.engine.pipeline import build_dataset, iter_splits, build_dataloader
+from seizure_pred.training.engine.pipeline import build_dataset, iter_splits, build_loader
 from seizure_pred.training.engine.trainer import Trainer
 
 # Register built-in plugins (models, datasets, loaders, losses, etc.)
@@ -51,8 +51,8 @@ cfg.sched.name = None
 dataset = build_dataset(cfg)
 train_set, val_set = next(iter(iter_splits(dataset, n_folds=2)))
 
-train_loader = build_dataloader("torch", train_set, cfg, shuffle=True)
-val_loader = build_dataloader("torch", val_set, cfg, shuffle=False)
+train_loader = build_loader("torch", train_set, cfg, shuffle=True)
+val_loader = build_loader("torch", val_set, cfg, shuffle=False)
 
 # Run directory (mimics CLI layout)
 stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")

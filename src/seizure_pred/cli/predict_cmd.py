@@ -73,7 +73,7 @@ def run_predict(args: argparse.Namespace) -> None:
 
     _, val_set = splits[args.split_index]
 
-    dl_name = args.dataloader or getattr(cfg.data, "dataloader", None) or "torch"
+    dl_name = cfg.data.dataloader_type or "torch"
     if args.strict and dl_name not in DATALOADERS:
         raise SystemExit(f"Unknown dataloader '{dl_name}'. Use `seizure-pred list`.")
     loader = build_loader(dl_name, val_set, cfg, shuffle=False)

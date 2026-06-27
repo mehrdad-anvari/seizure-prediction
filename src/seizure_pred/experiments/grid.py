@@ -9,7 +9,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Sequence, Tuple
 from seizure_pred.core.config import TrainConfig
 from seizure_pred.core.io import load_dict, merge_dict, from_dict
 from seizure_pred.core.validate import validate_train_config_dict
-from seizure_pred.training.engine.pipeline import build_dataset, iter_splits, build_dataloader
+from seizure_pred.training.engine.pipeline import build_dataset, iter_splits, build_loader
 from seizure_pred.training.engine.trainer import Trainer
 from seizure_pred.training.engine.trainer_mil import TrainerMIL
 from seizure_pred.training.registries import MODELS, LOSSES, OPTIMIZERS, SCHEDULERS
@@ -43,7 +43,6 @@ def run_grid(
     grid: Mapping[str, Sequence[Any]],
     *,
     split_index: int = 0,
-    dataloader: str = "torch",
     mil: bool = False,
     save_root: str | None = None,
 ) -> List[str]:
@@ -73,13 +72,13 @@ def run_grid(
 
         # build data
         ds = build_dataset(cfg)
-        splits = list(iter_splits(ds))
+        splits = list(iter_splits(ds, cfg.data, n_folds=cfg.data.n_folds))
         if split_index < 0 or split_index >= len(splits):
             raise ValueError(f"split_index {split_index} out of range (0..{len(splits)-1})")
         train_set, val_set = splits[split_index]
 
-        train_loader = build_dataloader(dataloader, train_set, cfg.data, shuffle=True)
-        val_loader = build_dataloader(dataloader, val_set, cfg.data, shuffle=False)
+        train_loader = build_loader(cfg.data.dataloader_type, train_set, cfg.data, shuffle=True)
+        val_loader = build_loader(cfg.data.dataloader_type, val_set, cfg.data, shuffle=False)
 
         # build model/loss/optim/sched via registries
         model = MODELS.create(cfg.model.name, cfg.model)
