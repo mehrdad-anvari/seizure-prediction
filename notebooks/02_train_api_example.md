@@ -49,7 +49,7 @@ cfg.sched.name = None
 
 # Build dataset and take the first split
 dataset = build_dataset(cfg)
-train_set, val_set = next(iter(iter_splits(dataset, n_folds=2)))
+train_set, val_set = next(iter(iter_splits(dataset, cfg.data, n_folds=2)))
 
 train_loader = build_loader("torch", train_set, cfg, shuffle=True)
 val_loader = build_loader("torch", val_set, cfg, shuffle=False)

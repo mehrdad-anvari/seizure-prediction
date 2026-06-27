@@ -84,7 +84,7 @@ def run_train(args: argparse.Namespace) -> None:
 
     # Build dataset + split
     dataset = build_dataset(cfg)
-    splits = list(iter_splits(dataset, n_folds=args.n_folds))
+    splits = list(iter_splits(dataset, cfg.data, n_folds=args.n_folds))
     if args.split_index < 0 or args.split_index >= len(splits):
         raise SystemExit(f"--split-index {args.split_index} out of range (0..{len(splits)-1})")
 
