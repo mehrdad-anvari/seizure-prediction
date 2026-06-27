@@ -16,7 +16,6 @@ def add_experiments_cmd(sub: argparse._SubParsersAction) -> None:
     )
     p.add_argument("--split-index", type=int, default=0)
     p.add_argument("--n-folds", type=int, default=5)
-    p.add_argument("--dataloader", default="torch")
     p.add_argument("--mil", action="store_true")
     p.add_argument("--save-root", default=None, help="Override config.save_dir")
     p.set_defaults(func=run_experiments)
@@ -29,8 +28,6 @@ def run_experiments(args: argparse.Namespace) -> None:
         args.config,
         grid,
         split_index=args.split_index,
-        n_folds=args.n_folds,
-        dataloader=args.dataloader,
         mil=args.mil,
         save_root=args.save_root,
     )

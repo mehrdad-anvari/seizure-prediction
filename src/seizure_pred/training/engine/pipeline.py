@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Iterator, Tuple, Union
+from typing import Iterator, Tuple
 
 from torch.utils.data import Dataset
 
 from seizure_pred.core.config import DataConfig, TrainConfig
-from seizure_pred.data.splits import leave_one_out
+from seizure_pred.data.splits import leave_one_out, make_cv_splitter
 from seizure_pred.training.registries import DATASETS, DATALOADERS
 
 
@@ -34,13 +34,14 @@ def build_dataset(cfg: TrainConfig) -> Dataset:
     return DATASETS.create(cfg.data.name, cfg.data)
 
 
-def iter_splits(dataset: Dataset, *, n_folds: int = 5) -> Iterator[Tuple[Dataset, Dataset]]:
+def iter_splits(dataset: Dataset, cfg: DataConfig) -> Iterator[Tuple[Dataset, Dataset]]:
     """Yield (train_set, val_set) folds.
 
     Default uses leave-one-out style splitter implemented in `seizure_pred.data.splits`.
     If you later want other splitters, make this another registry (SPLITTERS).
     """
-    yield from leave_one_out(dataset)
+    yield from make_cv_splitter(dataset, mode=cfg.split_method, n_folds=cfg.n_folds, shuffle=cfg.shuffle)
+    
 
 
 def build_loader(name: str, dataset: Dataset, cfg: TrainConfig, *, shuffle: bool) -> object:
@@ -52,27 +53,3 @@ def build_loader(name: str, dataset: Dataset, cfg: TrainConfig, *, shuffle: bool
     if name not in DATALOADERS:
         _ensure_registries()
     return DATALOADERS.create(name, dataset, cfg.data, shuffle=shuffle)
-
-
-def build_dataloader(
-    name: str,
-    dataset: Dataset,
-    cfg: Union[TrainConfig, DataConfig],
-    *,
-    shuffle: bool,
-    **kwargs,
-) -> object:
-    """Back-compat helper for older scripts.
-
-    Historically some scripts called ``build_dataloader(name, dataset, data_cfg, shuffle=...)``.
-    The newer pipeline uses :func:`build_loader` which takes the full TrainConfig.
-    This helper accepts either and forwards to the registered dataloader factories.
-    """
-    data_cfg = cfg.data if isinstance(cfg, TrainConfig) else cfg
-    if name not in DATALOADERS:
-        _ensure_registries()
-    return DATALOADERS.create(name, dataset, data_cfg, shuffle=shuffle, **kwargs)
-
-
-# Alias (some code imports build_dataloader, others build_loader)
-build_dataloader = build_dataloader

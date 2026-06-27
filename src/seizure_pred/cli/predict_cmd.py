@@ -67,13 +67,13 @@ def run_predict(args: argparse.Namespace) -> None:
 
     # Dataset + split
     ds = build_dataset(cfg)
-    splits = list(iter_splits(ds, n_folds=args.n_folds))
+    splits = list(iter_splits(ds, cfg.data))
     if args.split_index < 0 or args.split_index >= len(splits):
         raise SystemExit(f"--split-index {args.split_index} out of range (0..{len(splits)-1})")
 
     _, val_set = splits[args.split_index]
 
-    dl_name = args.dataloader or getattr(cfg.data, "dataloader", None) or "torch"
+    dl_name = cfg.data.dataloader_type or "torch"
     if args.strict and dl_name not in DATALOADERS:
         raise SystemExit(f"Unknown dataloader '{dl_name}'. Use `seizure-pred list`.")
     loader = build_loader(dl_name, val_set, cfg, shuffle=False)

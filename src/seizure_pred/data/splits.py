@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterator, Tuple, Union, Optional, Literal, Iterable
+from typing import Iterator, Tuple, Union, Optional, Literal
 
 import numpy as np
 
@@ -9,9 +9,34 @@ try:  # optional
 except Exception:  # pragma: no cover
     StratifiedKFold = None  # type: ignore
 
-from .chbmit_npz import CHBMITDataset, SubsetWithInfo
+from .chbmit_npz import CHBMITDataset
+from .base_dataset import BaseDataset
+from torch.utils.data import Subset
 
 
+
+class SubsetWithInfo(Subset):
+    """A Subset that maintains instances' classes and groups information"""
+
+    def __init__(self, dataset, indices):
+        super().__init__(dataset, indices)
+        if isinstance(dataset, SubsetWithInfo):
+            self.base_dataset: BaseDataset = dataset.base_dataset
+            self.base_indices = np.array(dataset.base_indices)[indices]
+        else:
+            self.base_dataset: BaseDataset = dataset
+            self.base_indices = indices
+
+        self.y = self.base_dataset.y[self.base_indices]
+        self.group_ids = self.base_dataset.group_ids[self.base_indices]
+        self.metadata = [self.base_dataset.metadata[i] for i in self.base_indices]
+
+    def get_class_indices(self):
+        """Return indices for each class within this subset"""
+        target_indices = np.where(self.y == 1)[0]
+        baseline_indices = np.where(self.y == 0)[0]
+        return target_indices, baseline_indices
+    
 def leave_one_out(
     dataset: Union[CHBMITDataset, SubsetWithInfo],
     *,
@@ -127,7 +152,7 @@ def make_cv_splitter(
     *,
     mode: CVMode,
     method: Optional[str] = None,
-    n_fold: int = 5,
+    n_folds: int = 5,
     shuffle: bool = False,
     random_state: int = 0,
 ) -> Iterator[Tuple[SubsetWithInfo, SubsetWithInfo]]:
@@ -156,7 +181,7 @@ def make_cv_splitter(
     if mode == "stratified":
         yield from stratified_kfold(
             dataset,
-            n_folds=int(n_fold),
+            n_folds=int(n_folds),
             shuffle=bool(shuffle),
             random_state=int(random_state),
         )

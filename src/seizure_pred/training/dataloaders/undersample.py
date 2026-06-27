@@ -7,8 +7,11 @@ import numpy as np
 import torch
 
 from seizure_pred.core.config import DataConfig
+from seizure_pred.data.base_dataset import BaseDataset
+from seizure_pred.data.splits import SubsetWithInfo
 from seizure_pred.training.registries import DATALOADERS
 
+from typing import Union
 
 @dataclass
 class UnderSampledDataLoader:
@@ -26,7 +29,7 @@ class UnderSampledDataLoader:
         meta: list
     """
 
-    dataset: Any
+    dataset: Union[BaseDataset, SubsetWithInfo]
     batch_size: int = 32
     shuffle: bool = True
     random_state: int = 0
@@ -34,12 +37,8 @@ class UnderSampledDataLoader:
     def __post_init__(self):
         self.rng = np.random.RandomState(self.random_state)
 
-        pos, neg = [], []
-        for i in range(len(self.dataset)):
-            if int(self.dataset.y[i]) == 1:
-                pos.append(i)
-            else:
-                neg.append(i)
+        pos, neg = self.dataset.get_class_indices()
+
         self.pos_indices = np.asarray(pos, dtype=int)
         self.neg_indices = np.asarray(neg, dtype=int)
         self.count_seen = {int(idx): 0 for idx in self.neg_indices.tolist()}
@@ -53,16 +52,16 @@ class UnderSampledDataLoader:
             # Degenerate: just return negatives
             selected_neg = self.neg_indices
         elif n_neg > n_pos:
-            inter_array = np.array(list(self.count_seen.keys()), dtype=int)
+            neg_array = np.array(list(self.count_seen.keys()), dtype=int)
             seen_counts = np.array(list(self.count_seen.values()), dtype=int)
 
             min_count = seen_counts.min()
             min_mask = seen_counts == min_count
-            min_indices = inter_array[min_mask]
+            min_indices = neg_array[min_mask]
 
             if len(min_indices) < n_pos:
                 remaining = n_pos - len(min_indices)
-                not_min = inter_array[~min_mask]
+                not_min = neg_array[~min_mask]
                 selected_extra = self.rng.choice(not_min, size=remaining, replace=False)
                 selected_neg = np.concatenate([min_indices, selected_extra])
             else:

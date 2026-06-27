@@ -22,6 +22,8 @@ class DataConfig:
         num_workers: Number of CPU workers for dataloader multiprocessing.
         pin_memory: Whether to copy tensors into CUDA pinned memory.
         persistent_workers: Whether dataloader workers remain alive between epochs.
+        split_method: Method for train/validation/test splitting ("kfold", "loo").
+        dataloader_type: Type of data loader ("undersample", "mil").
         kwargs: Additional dataset-specific builder keyword arguments.
     """
     name: str = "chbmit_npz"
@@ -34,6 +36,10 @@ class DataConfig:
     num_workers: int = 4
     pin_memory: bool = True
     persistent_workers: bool = True
+    split_method: Literal["leave_one_preictal", "leave_one_out", "stratified"] = "stratified"
+    n_folds: int = 5
+    shuffle: bool = True
+    dataloader_type: Literal["undersample", "mil", "torch"] = "undersample"
     kwargs: Dict[str, Any] = field(default_factory=dict)
 
 

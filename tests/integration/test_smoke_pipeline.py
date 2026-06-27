@@ -45,7 +45,7 @@ def test_smoke_pipeline_end_to_end():
     cfg.model.kwargs = {"hidden": 8}
 
     dataset = build_dataset(cfg)
-    train_set, val_set = next(iter(iter_splits(dataset, n_folds=5)))
+    train_set, val_set = next(iter(iter_splits(dataset, cfg.data)))
     train_loader = build_loader("torch", train_set, cfg, shuffle=True)
     val_loader = build_loader("torch", val_set, cfg, shuffle=False)
 

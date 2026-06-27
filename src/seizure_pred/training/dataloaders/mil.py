@@ -9,8 +9,11 @@ import torch
 from collections import defaultdict
 
 from seizure_pred.core.config import DataConfig
+from seizure_pred.data.base_dataset import BaseDataset
+from seizure_pred.data.splits import SubsetWithInfo
 from seizure_pred.training.registries import DATALOADERS
 
+from typing import Union
 
 @dataclass
 class MilDataLoader:
@@ -25,7 +28,7 @@ class MilDataLoader:
         meta: list[list[meta]]
     """
 
-    dataset: Any
+    dataset: Union[BaseDataset, SubsetWithInfo]
     batch_size: int = 32
     shuffle: bool = True
     bag_size: int = 8

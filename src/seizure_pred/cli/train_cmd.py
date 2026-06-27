@@ -65,7 +65,7 @@ def run_train(args: argparse.Namespace) -> None:
     if args.dataloader is not None:
         cfg.data.kwargs = dict(cfg.data.kwargs or {})
         cfg.data.kwargs["dataloader_name"] = args.dataloader  # keep provenance
-    dl_name = args.dataloader or getattr(cfg.data, "dataloader", None) or "torch"
+    dl_name = cfg.data.dataloader_type or "torch"
 
     if args.print_config:
         print(json.dumps(asdict(cfg), indent=2, default=str))
@@ -84,7 +84,7 @@ def run_train(args: argparse.Namespace) -> None:
 
     # Build dataset + split
     dataset = build_dataset(cfg)
-    splits = list(iter_splits(dataset, n_folds=args.n_folds))
+    splits = list(iter_splits(dataset, cfg.data))
     if args.split_index < 0 or args.split_index >= len(splits):
         raise SystemExit(f"--split-index {args.split_index} out of range (0..{len(splits)-1})")
 
@@ -92,7 +92,7 @@ def run_train(args: argparse.Namespace) -> None:
 
     # Build loaders via registry (factory pattern)
     # (If strict and not present -> raise with helpful registry error)
-    if args.strict and dl_name not in DATALOADERS:
+    if dl_name not in DATALOADERS:
         raise SystemExit(f"Unknown dataloader '{dl_name}'. Use `seizure-pred list`.")
 
     train_loader = build_loader(dl_name, train_set, cfg, shuffle=True)
