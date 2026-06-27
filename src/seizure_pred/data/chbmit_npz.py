@@ -18,7 +18,7 @@ from collections import defaultdict
 from sklearn import utils
 from collections import Counter
 from seizure_pred.data.base_dataset import BaseDataset
-
+from seizure_pred.data.splits import SubsetWithInfo
 
 class CHBMITDataset(BaseDataset):
     def __init__(
@@ -168,29 +168,6 @@ class CHBMITDataset(BaseDataset):
 
     def get_class_indices(self):
         """Return indices for each class"""
-        target_indices = np.where(self.y == 1)[0]
-        baseline_indices = np.where(self.y == 0)[0]
-        return target_indices, baseline_indices
-
-
-class SubsetWithInfo(Subset):
-    """A Subset that maintains instances' classes and groups information"""
-
-    def __init__(self, dataset, indices):
-        super().__init__(dataset, indices)
-        if isinstance(dataset, SubsetWithInfo):
-            self.base_dataset: BaseDataset = dataset.base_dataset
-            self.base_indices = np.array(dataset.base_indices)[indices]
-        else:
-            self.base_dataset: BaseDataset = dataset
-            self.base_indices = indices
-
-        self.y = self.base_dataset.y[self.base_indices]
-        self.group_ids = self.base_dataset.group_ids[self.base_indices]
-        self.metadata = [self.base_dataset.metadata[i] for i in self.base_indices]
-
-    def get_class_indices(self):
-        """Return indices for each class within this subset"""
         target_indices = np.where(self.y == 1)[0]
         baseline_indices = np.where(self.y == 0)[0]
         return target_indices, baseline_indices
