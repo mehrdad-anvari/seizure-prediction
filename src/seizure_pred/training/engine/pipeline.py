@@ -34,18 +34,14 @@ def build_dataset(cfg: TrainConfig) -> Dataset:
     return DATASETS.create(cfg.data.name, cfg.data)
 
 
-def iter_splits(dataset: Dataset, cfg: DataConfig, n_folds: int = 5) -> Iterator[Tuple[Dataset, Dataset]]:
+def iter_splits(dataset: Dataset, cfg: DataConfig) -> Iterator[Tuple[Dataset, Dataset]]:
     """Yield (train_set, val_set) folds.
 
     Default uses leave-one-out style splitter implemented in `seizure_pred.data.splits`.
     If you later want other splitters, make this another registry (SPLITTERS).
     """
-    if cfg.data.split_method == "loo":
-        yield from leave_one_out(dataset)
-    elif cfg.data.split_method == "kfold":
-        yield from make_cv_splitter(dataset, n_folds=n_folds)
-    else:
-        raise ValueError(f"Unknown split_method: {cfg.data.split_method}")
+    yield from make_cv_splitter(dataset, mode=cfg.iter_method, n_folds=cfg.n_folds, shuffle=cfg.shuffle)
+    
 
 
 def build_loader(name: str, dataset: Dataset, cfg: TrainConfig, *, shuffle: bool) -> object:

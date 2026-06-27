@@ -70,7 +70,7 @@ def run_grid(
 
         # build data
         ds = build_dataset(cfg)
-        splits = list(iter_splits(ds, cfg.data, n_folds=cfg.data.n_folds))
+        splits = list(iter_splits(ds, cfg.data))
         if split_index < 0 or split_index >= len(splits):
             raise ValueError(f"split_index {split_index} out of range (0..{len(splits)-1})")
         train_set, val_set = splits[split_index]

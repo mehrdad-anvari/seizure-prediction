@@ -36,7 +36,9 @@ class DataConfig:
     num_workers: int = 4
     pin_memory: bool = True
     persistent_workers: bool = True
-    split_method: Literal["kfold", "loo"] = "kfold"
+    split_method: Literal["leave_one_preictal", "leave_one_out", "stratified"] = "stratified"
+    n_folds: int = 5,
+    shuffle: bool = True,
     dataloader_type: Literal["undersample", "mil", "torch"] = "undersample"
     kwargs: Dict[str, Any] = field(default_factory=dict)
 

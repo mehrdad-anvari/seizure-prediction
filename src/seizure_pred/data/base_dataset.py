@@ -30,26 +30,46 @@ class BaseDataset(Dataset):
         """
         self.online_transforms = online_transforms or []
         self.offline_transforms = offline_transforms or []
+        self._X = np.empty((0,), dtype=np.float32)
+        self._y = np.empty((0,), dtype=np.int64)
+        self._group_ids = np.empty((0,), dtype=object)
+        self._metadata: List[dict] = []
 
     @property
     def X(self) -> np.ndarray:
         """Features array. Shape: (n_samples, n_channels, n_timesteps)"""
-        raise NotImplementedError("Subclasses must implement 'X' property")
+        return self._X
+
+    @X.setter
+    def X(self, value: np.ndarray):
+        self._X = value
 
     @property
     def y(self) -> np.ndarray:
         """Labels array. Binary or multi-class labels."""
-        raise NotImplementedError("Subclasses must implement 'y' property")
+        return self._y
+
+    @y.setter
+    def y(self, value: np.ndarray):
+        self._y = value
 
     @property
     def group_ids(self) -> np.ndarray:
         """Group identifiers (e.g., event IDs). Shape: (n_samples,)"""
-        raise NotImplementedError("Subclasses must implement 'group_ids' property")
+        return self._group_ids
+
+    @group_ids.setter
+    def group_ids(self, value: np.ndarray):
+        self._group_ids = value
 
     @property
     def metadata(self) -> List[dict]:
         """Metadata for each sample as list of dictionaries."""
-        raise NotImplementedError("Subclasses must implement 'metadata' property")
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, value: List[dict]):
+        self._metadata = value
 
 
     def __len__(self) -> int:

@@ -1,7 +1,7 @@
 task: prediction
 seed: 42
 device: cuda
-epochs: 5
+epochs: 50
 amp: true
 grad_clip_norm: 1.0
 log_every: 10
@@ -16,12 +16,12 @@ data:
   batch_size: 32
   num_workers: 4
   use_uint16: false
-  split_method: "kfold"
+  split_method: "stratified"
   dataloader_type: "undersample"
-  suffix: fd_5s_szx5_prex5
+  suffix: fd_5s
 
 model:
-  name: simple_cnn
+  name: eegwavenet
   num_classes: 1
   kwargs: {}
 

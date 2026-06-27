@@ -28,7 +28,6 @@ def run_experiments(args: argparse.Namespace) -> None:
         args.config,
         grid,
         split_index=args.split_index,
-        n_folds=args.n_folds,
         mil=args.mil,
         save_root=args.save_root,
     )
