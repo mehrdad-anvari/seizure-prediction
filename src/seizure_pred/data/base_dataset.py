@@ -1,7 +1,7 @@
 """Base Dataset class"""
 
 from __future__ import annotations
-from typing import Callable, List, Optional, TypeVar, Generic
+from typing import Callable, List, Optional, TypeVar
 import numpy as np
 import torch
 from torch.utils.data import Dataset
