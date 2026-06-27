@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import itertools
 import json
-import os
-from dataclasses import replace
-from typing import Any, Dict, Iterable, List, Mapping, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Sequence
 
 from seizure_pred.core.config import TrainConfig
-from seizure_pred.core.io import load_dict, merge_dict, from_dict
+from seizure_pred.core.io import load_dict, from_dict
 from seizure_pred.core.validate import validate_train_config_dict
 from seizure_pred.training.engine.pipeline import build_dataset, iter_splits, build_loader
 from seizure_pred.training.engine.trainer import Trainer
