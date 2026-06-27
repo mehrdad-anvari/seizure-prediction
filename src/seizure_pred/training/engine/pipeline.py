@@ -40,7 +40,7 @@ def iter_splits(dataset: Dataset, cfg: DataConfig) -> Iterator[Tuple[Dataset, Da
     Default uses leave-one-out style splitter implemented in `seizure_pred.data.splits`.
     If you later want other splitters, make this another registry (SPLITTERS).
     """
-    yield from make_cv_splitter(dataset, mode=cfg.iter_method, n_folds=cfg.n_folds, shuffle=cfg.shuffle)
+    yield from make_cv_splitter(dataset, mode=cfg.split_method, n_folds=cfg.n_folds, shuffle=cfg.shuffle)
     
 
 

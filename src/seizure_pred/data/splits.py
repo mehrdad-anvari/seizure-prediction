@@ -152,7 +152,7 @@ def make_cv_splitter(
     *,
     mode: CVMode,
     method: Optional[str] = None,
-    n_fold: int = 5,
+    n_folds: int = 5,
     shuffle: bool = False,
     random_state: int = 0,
 ) -> Iterator[Tuple[SubsetWithInfo, SubsetWithInfo]]:
@@ -181,7 +181,7 @@ def make_cv_splitter(
     if mode == "stratified":
         yield from stratified_kfold(
             dataset,
-            n_folds=int(n_fold),
+            n_folds=int(n_folds),
             shuffle=bool(shuffle),
             random_state=int(random_state),
         )
