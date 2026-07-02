@@ -50,7 +50,7 @@ seizure-pred preprocess-chbmit \
 
 ### 2) Train
 ```bash
-seizure-pred train --config examples/config_prediction.yaml --split-index 0
+seizure-pred train --config examples/config_prediction.yaml
 ```
 
 You can choose components by name (registries):

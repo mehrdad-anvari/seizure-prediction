@@ -9,7 +9,7 @@ seizure-pred preprocess-chbmit \
 
 ## 2) Train (CLI)
 ```bash
-seizure-pred train --config examples/config_prediction.yaml --dataloader undersample --split-index 0
+seizure-pred train --config examples/config_prediction.yaml --dataloader undersample
 ```
 
 ## 3) Predict

@@ -23,7 +23,7 @@ A ready-to-run synthetic config is included:
 Run a tiny 2-fold training job:
 
 ```bash
-seizure-pred train --config examples/config_synthetic.yaml --split-index 0 --n-folds 2
+seizure-pred train --config examples/config_synthetic.yaml --n-folds 2
 ```
 
 Training prints `best_checkpoint` and `run_dir`. Keep those.

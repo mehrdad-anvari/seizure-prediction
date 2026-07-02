@@ -5,7 +5,7 @@ This walkthrough trains a MIL model and runs prediction + analysis.
 ## Train MIL
 
 ```bash
-seizure-pred train --config examples/config_mil_detection.yaml --mil --dataloader mil --split-index 0
+seizure-pred train --config examples/config_mil_detection.yaml --mil --dataloader mil
 ```
 
 Training prints:

@@ -87,3 +87,59 @@ def test_smoke_pipeline_end_to_end():
         rep = analyze_run(td, threshold=0.5, make_plots=False)
         assert "report" in rep and "f1" in rep["report"]
         assert os.path.exists(os.path.join(td, "analysis", "report.json"))
+
+
+def test_smoke_train_from_config_end_to_end():
+    # Keep the smoke test fast and deterministic
+    try:
+        torch.set_num_threads(1)
+        torch.set_num_interop_threads(1)
+    except Exception:
+        pass
+
+    import yaml
+    from seizure_pred.cli.train_cmd import train_from_config
+
+    with tempfile.TemporaryDirectory() as td:
+        config_data = {
+            "device": "cpu",
+            "amp": False,
+            "epochs": 1,
+            "task": "prediction",
+            "save_dir": td,
+            "run_name": "test_run",
+            "data": {
+                "name": "synthetic",
+                "batch_size": 4,
+                "num_workers": 0,
+                "pin_memory": False,
+                "persistent_workers": False,
+                "split_method": "stratified",
+                "n_folds": 2,
+                "kwargs": {"n": 16, "c": 8, "t": 32, "pos_frac": 0.25, "seed": 1}
+            },
+            "model": {
+                "name": "simple_cnn",
+                "num_classes": 1,
+                "in_channels": 8,
+                "kwargs": {"hidden": 4}
+            }
+        }
+        
+        cfg_file = os.path.join(td, "config.yaml")
+        with open(cfg_file, "w") as f:
+            yaml.dump(config_data, f)
+
+        # Call train_from_config which should train both splits
+        train_from_config(cfg_file, strict=True)
+
+        # check that runs/test_run/<timestamp>/split_0/checkpoints/best.pt exists
+        run_name_dir = os.path.join(td, "test_run")
+        assert os.path.exists(run_name_dir)
+        timestamps = os.listdir(run_name_dir)
+        assert len(timestamps) == 1
+        stamp_dir = os.path.join(run_name_dir, timestamps[0])
+        
+        assert os.path.exists(os.path.join(stamp_dir, "split_0", "checkpoints", "best.pt"))
+        assert os.path.exists(os.path.join(stamp_dir, "split_1", "checkpoints", "best.pt"))
+

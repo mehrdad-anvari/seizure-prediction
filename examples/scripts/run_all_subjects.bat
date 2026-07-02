@@ -56,7 +56,7 @@ for %%M in (%MODELS%) do (
       echo run_name: "%%M_sub%%S_%SUFFIX%"
     )
 
-    python -m seizure_pred.cli.main train --config "%BASE_CFG%" --override "!OVERRIDE!" --split-index 0 --n-folds 5
+    python -m seizure_pred.cli.main train --config "%BASE_CFG%" --override "!OVERRIDE!" --n-folds 5
   )
 )
 

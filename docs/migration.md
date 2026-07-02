@@ -13,7 +13,7 @@ Recommended: switch to the CLI or API.
 
 ### New: training via CLI
 ```bash
-seizure-pred train --config examples/config_prediction.yaml --split-index 0
+seizure-pred train --config examples/config_prediction.yaml
 ```
 
 ### New: training via API

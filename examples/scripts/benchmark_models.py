@@ -37,7 +37,6 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--config", required=True, help="Base YAML/JSON config")
     p.add_argument("--models", nargs="+", required=True, help="List of model registry names")
     p.add_argument("--epochs", type=int, default=None, help="Override epochs")
-    p.add_argument("--split-index", type=int, default=0)
     p.add_argument("--n-folds", type=int, default=5)
     p.add_argument("--mil", action="store_true", help="Use MIL trainer")
     p.add_argument("--strict", action="store_true", help="Fail fast if components are missing")
@@ -51,7 +50,7 @@ def _make_override(base: Dict[str, Any], model_name: str, epochs: int | None) ->
     return o
 
 
-def _run_one(base_cfg_path: str, override: Dict[str, Any], *, split_index: int, n_folds: int, mil: bool, strict: bool) -> None:
+def _run_one(base_cfg_path: str, override: Dict[str, Any], *, n_folds: int, mil: bool, strict: bool) -> None:
     # Write merged config to a temp file and call the same CLI implementation used by `seizure-pred train`.
     base = load_dict(base_cfg_path)
     merged = copy.deepcopy(base)
@@ -72,7 +71,6 @@ def _run_one(base_cfg_path: str, override: Dict[str, Any], *, split_index: int, 
         ns = argparse.Namespace(
             config=str(tmp),
             override=None,
-            split_index=split_index,
             n_folds=n_folds,
             dataloader=None,
             mil=mil,
@@ -90,7 +88,6 @@ def main() -> None:
         "base_config": args.config,
         "models": args.models,
         "epochs_override": args.epochs,
-        "split_index": args.split_index,
         "n_folds": args.n_folds,
         "mil": args.mil,
         "strict": args.strict,
@@ -102,7 +99,6 @@ def main() -> None:
         _run_one(
             args.config,
             override,
-            split_index=args.split_index,
             n_folds=args.n_folds,
             mil=args.mil,
             strict=args.strict,

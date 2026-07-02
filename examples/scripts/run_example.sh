@@ -39,7 +39,7 @@ optim:
   lr: 1.0e-3
 YAML
 
-python -m seizure_pred.cli.main train --config "$BASE_CFG" --override "$CONFIG_DIR/override_quick.yaml" --split-index 0 --n-folds 5
+python -m seizure_pred.cli.main train --config "$BASE_CFG" --override "$CONFIG_DIR/override_quick.yaml" --n-folds 5
 
 # 3) Another run with a different model + subject
 cat > "$CONFIG_DIR/override_eegnet.yaml" <<'YAML'
@@ -53,6 +53,6 @@ optim:
   lr: 5.0e-4
 YAML
 
-python -m seizure_pred.cli.main train --config "$BASE_CFG" --override "$CONFIG_DIR/override_eegnet.yaml" --split-index 0 --n-folds 5
+python -m seizure_pred.cli.main train --config "$BASE_CFG" --override "$CONFIG_DIR/override_eegnet.yaml" --n-folds 5
 
 echo "[run_example] Done. See runs/ for outputs."

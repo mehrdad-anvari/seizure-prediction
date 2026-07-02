@@ -9,7 +9,7 @@ This checklist is meant to help you cut a clean release (e.g., `v0.2.0`) with re
 - [ ] `PYTHONPATH=src seizure-pred --help`
 - [ ] `PYTHONPATH=src seizure-pred list`
 - [ ] Train a tiny synthetic run:
-  - [ ] `PYTHONPATH=src seizure-pred train --config examples/config_prediction.yaml --split-index 0`
+  - [ ] `PYTHONPATH=src seizure-pred train --config examples/config_prediction.yaml`
 - [ ] Predict + analyze on the produced run dir:
   - [ ] `PYTHONPATH=src seizure-pred predict --config examples/config_prediction.yaml --checkpoint <best.pt> --split-index 0 --out-dir <out>`
   - [ ] `PYTHONPATH=src seizure-pred analyze --run-dir <out> --no-plots`
