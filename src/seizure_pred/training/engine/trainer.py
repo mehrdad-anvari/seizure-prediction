@@ -100,19 +100,22 @@ class Trainer:
             state["val_loss"] = val_loss
             state["val_metrics"] = {k: v for k, v in val_out.items() if k not in {"val_logits", "val_targets", "val_meta"}}
 
-            # Log once per epoch (similar to original repo's train.py)
-            if logger.handlers:
+            # Log once per epoch (consolidated)
+            try:
                 parts = [
                     f"Epoch {epoch:03d}/{int(self.cfg.epochs):03d}",
                     f"train_loss={train_loss:.5f}",
                     f"val_loss={val_loss:.5f}",
                 ]
-                # Include a few common metrics if present
+                # Include common validation metrics if present
                 for k in ("auc", "acc", "f1", "precision", "recall"):
                     v = state["val_metrics"].get(k)
                     if isinstance(v, (int, float)):
                         parts.append(f"{k}={float(v):.4f}")
                 logger.info(" | ".join(parts))
+            except Exception:
+                # Logging must never crash training
+                pass
 
             # history row
             try:
@@ -172,41 +175,7 @@ class Trainer:
                 # Track last checkpoint as well
                 last_ckpt_path = best_ckpt_path or last_ckpt_path
 
-            # Console/file logging (similar to legacy train.py)
-            try:
-                m = state.get("val_metrics", {}) or {}
-                logger.info(
-                    "Epoch %03d | Train loss %.6f | Val loss %.6f | "
-                    "acc %.4f auc %.4f f1 %.4f",
-                    epoch,
-                    float(train_loss),
-                    float(val_loss),
-                    float(m.get("acc", float("nan"))),
-                    float(m.get("auc", float("nan"))),
-                    float(m.get("f1", float("nan"))),
-                )
-            except Exception:
-                # Logging must never crash training
-                pass
-
             self.callbacks.on_epoch_end(state)
-
-            # Human-friendly logging (similar to the original repo)
-            try:
-                metrics = state.get("val_metrics", {}) or {}
-                # Prefer AUC/acc if available
-                parts = [
-                    f"Epoch {epoch:03d}",
-                    f"train_loss={train_loss:.4f}",
-                    f"val_loss={val_loss:.4f}",
-                ]
-                if "acc" in metrics:
-                    parts.append(f"val_acc={float(metrics['acc']):.4f}")
-                if "auc" in metrics:
-                    parts.append(f"val_auc={float(metrics['auc']):.4f}")
-                logger.info(" | ".join(parts))
-            except Exception:
-                pass
 
             # Early stopping support: callbacks may set state["stop"]=True
             if state.get("stop", False):
