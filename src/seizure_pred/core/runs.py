@@ -33,3 +33,23 @@ class RunPaths:
         self.analysis_dir.mkdir(parents=True, exist_ok=True)
         self.checkpoints_dir.mkdir(parents=True, exist_ok=True)
         return self
+
+
+def find_splits(dir_path: str) -> list[tuple[int, str]]:
+    """Finds subdirectories matching split_X under dir_path.
+
+    Returns:
+        List of tuples (split_index, split_dir_path) sorted by split_index.
+    """
+    import os
+    import re
+    splits = []
+    if not os.path.isdir(dir_path):
+        return []
+    for name in os.listdir(dir_path):
+        sub_path = os.path.join(dir_path, name)
+        if os.path.isdir(sub_path):
+            m = re.match(r"^split_(\d+)$", name)
+            if m:
+                splits.append((int(m.group(1)), sub_path))
+    return sorted(splits, key=lambda x: x[0])

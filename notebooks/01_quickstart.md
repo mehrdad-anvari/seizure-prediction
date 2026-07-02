@@ -31,12 +31,10 @@ Training prints `best_checkpoint` and `run_dir`. Keep those.
 ## Predict + Analyze
 
 ```bash
-# Use the printed best checkpoint
+# Predict on all splits:
 seizure-pred predict --config examples/config_synthetic.yaml \
-  --checkpoint <PATH_TO_BEST_CHECKPOINT> \
-  --split-index 0 --n-folds 2 \
-  --out-dir <RUN_DIR>/predict_split_0
+  --checkpoint <RUN_DIR>
 
-# Analyze predictions (writes <OUT_DIR>/analysis/report.json and optional plots)
-seizure-pred analyze --run-dir <RUN_DIR>/predict_split_0 --no-plots
+# Analyze predictions for all splits:
+seizure-pred analyze --run-dir <RUN_DIR> --no-plots
 ```

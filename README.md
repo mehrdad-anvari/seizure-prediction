@@ -65,18 +65,15 @@ seizure-pred train --config examples/config_prediction.yaml \
 ```bash
 seizure-pred predict \
   --config examples/config_prediction.yaml \
-  # use the printed best_checkpoint from `seizure-pred train`
-  --checkpoint runs/<run_name>/<stamp>/split_0/checkpoints/best.pt \
-  --split-index 0 \
-  --out-dir runs/<run_name>/<stamp>/split_0/eval_split0
+  --checkpoint runs/<run_name>/<stamp>
 ```
 
 ### 4) Analyze
 ```bash
-seizure-pred analyze --run-dir runs/<run_name>/<stamp>/split_0
+seizure-pred analyze --run-dir runs/<run_name>/<stamp>
 ```
 
-This writes plots and reports into `runs/<run_name>/<stamp>/split_0/analysis/`.
+This writes plots and reports under each split directory (`runs/<run_name>/<stamp>/split_<index>/analysis/`).
 
 ---
 

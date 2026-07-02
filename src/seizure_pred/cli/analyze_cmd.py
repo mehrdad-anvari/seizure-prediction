@@ -16,10 +16,27 @@ def add_analyze_cmd(sub: argparse._SubParsersAction) -> None:
 
 
 def run_analyze_cmd(args: argparse.Namespace) -> None:
-    analyze_run(
-        run_dir=args.run_dir,
-        out_dir=args.out_dir,
-        threshold=args.threshold,
-        prefer_postprocessed=args.prefer_postprocessed,
-        make_plots=not args.no_plots,
-    )
+    import os
+    from seizure_pred.core.runs import find_splits
+
+    split_dirs = find_splits(args.run_dir)
+    if split_dirs:
+        for split_index, split_dir in split_dirs:
+            split_out_dir = None
+            if args.out_dir is not None:
+                split_out_dir = os.path.join(args.out_dir, f"split_{split_index}")
+            analyze_run(
+                run_dir=split_dir,
+                out_dir=split_out_dir,
+                threshold=args.threshold,
+                prefer_postprocessed=args.prefer_postprocessed,
+                make_plots=not args.no_plots,
+            )
+    else:
+        analyze_run(
+            run_dir=args.run_dir,
+            out_dir=args.out_dir,
+            threshold=args.threshold,
+            prefer_postprocessed=args.prefer_postprocessed,
+            make_plots=not args.no_plots,
+        )

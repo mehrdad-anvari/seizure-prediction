@@ -170,6 +170,12 @@ def run_train(args: argparse.Namespace) -> None:
 
             logger.info("[train] best_checkpoint=%s", best_ckpt)
             logger.info("[train] split %d done", split_index + 1)
+
+        # Log suggestion for prediction
+        parent_run_dir = os.path.join(cfg.save_dir, cfg.run_name, stamp)
+        logger.info("[train] Training completed for all splits under run directory: %s", parent_run_dir)
+        logger.info("[train] To run prediction on all splits, execute:")
+        logger.info("  seizure-pred predict --config %s --checkpoint %s", args.config, parent_run_dir)
     finally:
         try:
             logger = logging.getLogger("seizure_pred")

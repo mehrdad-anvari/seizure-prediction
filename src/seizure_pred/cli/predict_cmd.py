@@ -24,7 +24,7 @@ def add_predict_cmd(sub: argparse._SubParsersAction) -> None:
     p.add_argument("--config", required=True, help="YAML/JSON config file")
     p.add_argument("--override", default=None, help="Optional YAML/JSON override file merged on top")
     p.add_argument("--checkpoint", required=True, help="Path to checkpoint (.pt)")
-    p.add_argument("--split-index", type=int, default=0, help="Which split fold to run")
+    p.add_argument("--split-index", type=int, default=None, help="Which split fold to run (default: all splits if directory, else 0)")
     p.add_argument("--n-folds", type=int, default=5, help="Number of folds for splits")
     p.add_argument("--dataloader", default=None, help="Override dataloader strategy name")
     p.add_argument("--mil", action="store_true", help="Treat batches as MIL bags")
@@ -68,59 +68,106 @@ def run_predict(args: argparse.Namespace) -> None:
     # Dataset + split
     ds = build_dataset(cfg)
     splits = list(iter_splits(ds, cfg.data))
-    if args.split_index < 0 or args.split_index >= len(splits):
-        raise SystemExit(f"--split-index {args.split_index} out of range (0..{len(splits)-1})")
 
-    _, val_set = splits[args.split_index]
+    from seizure_pred.core.runs import find_splits
+
+    targets = []  # list of (split_index, checkpoint_path, split_out_dir)
+
+    if os.path.isdir(args.checkpoint):
+        split_dirs = find_splits(args.checkpoint)
+        if not split_dirs:
+            raise SystemExit(f"No split subdirectories (split_0, split_1, ...) found under {args.checkpoint}")
+
+        for split_index, split_dir in split_dirs:
+            if args.split_index is not None and args.split_index != split_index:
+                continue
+
+            ckpt_path = os.path.join(split_dir, "checkpoints", "best.pt")
+            if not os.path.exists(ckpt_path):
+                raise SystemExit(f"Checkpoint not found for split {split_index} at {ckpt_path}")
+
+            if args.out_dir is not None:
+                split_out_dir = os.path.join(args.out_dir, f"split_{split_index}")
+            else:
+                split_out_dir = os.path.join(split_dir, f"predict_split_{split_index}")
+
+            targets.append((split_index, ckpt_path, split_out_dir))
+    else:
+        split_index = args.split_index if args.split_index is not None else 0
+        if args.out_dir is not None:
+            split_out_dir = args.out_dir
+        else:
+            split_out_dir = os.path.join(os.path.dirname(args.checkpoint), f"predict_split_{split_index}")
+        targets.append((split_index, args.checkpoint, split_out_dir))
 
     dl_name = cfg.data.dataloader_type or "torch"
     if args.strict and dl_name not in DATALOADERS:
         raise SystemExit(f"Unknown dataloader '{dl_name}'. Use `seizure-pred list`.")
-    loader = build_loader(dl_name, val_set, cfg, shuffle=False)
 
-    # Model
-    if args.strict and cfg.model.name not in MODELS:
-        raise SystemExit(f"Unknown model '{cfg.model.name}'. Use `seizure-pred list`.")
-    model = MODELS.create(cfg.model.name, cfg.model)
-    model.to(device)
+    for split_index, checkpoint_path, split_out_dir in targets:
+        if split_index < 0 or split_index >= len(splits):
+            raise SystemExit(f"--split-index {split_index} out of range (0..{len(splits)-1})")
 
-    # Restore weights
-    restore_checkpoint(args.checkpoint, model=model)
+        _, val_set = splits[split_index]
+        loader = build_loader(dl_name, val_set, cfg, shuffle=False)
 
-    # Optional postprocess (applied to predicted labels)
-    postproc = _build_postprocessor(cfg, args.strict) if args.apply_postprocess else None
+        # Model
+        if args.strict and cfg.model.name not in MODELS:
+            raise SystemExit(f"Unknown model '{cfg.model.name}'. Use `seizure-pred list`.")
+        model = MODELS.create(cfg.model.name, cfg.model)
+        model.to(device)
 
-    # Output directory
-    out_dir = args.out_dir
-    if out_dir is None:
-        # default: sibling folder next to checkpoint
-        out_dir = os.path.join(os.path.dirname(args.checkpoint), f"predict_split_{args.split_index}")
-    os.makedirs(out_dir, exist_ok=True)
+        # Restore weights
+        restore_checkpoint(checkpoint_path, model=model)
 
-    writer = ArtifactWriter(out_dir)
-    writer.write_schema()
-    writer.write_config(asdict(cfg))
+        # Optional postprocess (applied to predicted labels)
+        postproc = _build_postprocessor(cfg, args.strict) if args.apply_postprocess else None
 
-    # Generate rows
-    rows = predict(
-        model=model,
-        loader=loader,
-        device=str(device),
-        is_mil=args.mil,
-        threshold=args.threshold,
-        postprocess=postproc,
-    )
+        os.makedirs(split_out_dir, exist_ok=True)
+        writer = ArtifactWriter(split_out_dir)
+        writer.write_schema()
+        writer.write_config(asdict(cfg))
 
-    # Write standardized predictions artifact
-    writer.write_predictions(rows)
+        # Generate rows
+        rows = predict(
+            model=model,
+            loader=loader,
+            device=str(device),
+            is_mil=args.mil,
+            threshold=args.threshold,
+            postprocess=postproc,
+        )
 
-    print(json.dumps(
-        {
-            "out_dir": out_dir,
-            "checkpoint": args.checkpoint,
-            "split_index": args.split_index,
-            "threshold": args.threshold,
-            "postprocess": getattr(getattr(cfg, "postprocess", None), "name", None) if args.apply_postprocess else None,
-        },
-        indent=2
-    ))
+        # Write standardized predictions artifact
+        writer.write_predictions(rows)
+
+        print(json.dumps(
+            {
+                "out_dir": split_out_dir,
+                "checkpoint": checkpoint_path,
+                "split_index": split_index,
+                "threshold": args.threshold,
+                "postprocess": getattr(getattr(cfg, "postprocess", None), "name", None) if args.apply_postprocess else None,
+            },
+            indent=2
+        ))
+
+    print("\n" + "=" * 80)
+    print("Prediction completed.")
+    if len(targets) > 1:
+        if args.out_dir is not None:
+            print("To analyze the predictions for all splits, execute:")
+            print(f"  seizure-pred analyze --run-dir {args.out_dir}")
+        else:
+            print("Predictions were saved to split-specific directories. To analyze them, you can run analysis for each directory, e.g.:")
+            for _, _, split_out_dir in targets[:3]:
+                print(f"  seizure-pred analyze --run-dir {split_out_dir}")
+            if len(targets) > 3:
+                print("  ...")
+            print("Tip: If you want to analyze all splits together in a unified directory, run predict with '--out-dir <dir>' first.")
+    else:
+        # Single split
+        _, _, split_out_dir = targets[0]
+        print("To analyze the predictions, execute:")
+        print(f"  seizure-pred analyze --run-dir {split_out_dir}")
+    print("=" * 80 + "\n")

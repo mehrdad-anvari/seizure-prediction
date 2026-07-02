@@ -14,18 +14,17 @@ seizure-pred train --config examples/config_prediction.yaml --dataloader undersa
 
 ## 3) Predict
 
-> Tip: `seizure-pred train` prints the resolved `best_checkpoint` and `run_dir` at the end.
+> Tip: `seizure-pred train` prints the resolved `run_dir` at the end.
 ```bash
 seizure-pred predict --config examples/config_prediction.yaml \
-  --checkpoint runs/<run_name>/<timestamp>/split_0/checkpoints/best.pt \
-  --split-index 0
+  --checkpoint runs/<run_name>/<timestamp>
 ```
 
 ## 4) Analyze
 
 You can run analysis from the CLI:
 ```bash
-seizure-pred analyze --run-dir runs/<run_name>/<timestamp>/split_0
+seizure-pred analyze --run-dir runs/<run_name>/<timestamp>
 ```
 
 Or in Python (read `predictions.jsonl` and compute basic metrics):
