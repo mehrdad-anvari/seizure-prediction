@@ -116,27 +116,26 @@ class CallbackConfig:
 
 
 @dataclass
-class TrainConfig:
-    """Overall training pipeline configuration.
+class CvConfig:
+    """Configuration for nested cross-validation."""
+    outer_method: str = "LOO"
+    outer_shuffle: bool = False
+    outer_n_fold: int = 5
+    outer_mode: str = "per_event_strata"
+    outer_M: int = 10
+    
+    inner_method: str = "KFold"
+    inner_n_fold: int = 5
+    inner_shuffle: bool = True
+    inner_mode: str = "per_event_strata"
+    inner_M: int = 10
+    
+    random_state: int = 42
 
-    Attributes:
-        task: Problem type, either "prediction" (preictal vs interictal) or "detection" (seizure vs non-seizure).
-        seed: Random seed for repeatability.
-        device: Target execution device (e.g., "cuda", "cpu").
-        epochs: Number of complete epochs to train.
-        grad_clip_norm: Maximum gradient norm for clipping (disabled if None).
-        amp: Whether to use Automatic Mixed Precision (FP16) training.
-        log_every: Step frequency for training progress logging.
-        val_every: Epoch frequency for validation evaluation.
-        save_dir: Base directory for saving training run folders.
-        run_name: Custom run tag/prefix.
-        data: Nested dataset configuration.
-        model: Nested model configuration.
-        loss: Nested loss configuration.
-        optim: Nested optimizer configuration.
-        sched: Nested learning rate scheduler configuration.
-        callbacks: List of callback configurations to instantiate.
-    """
+
+@dataclass
+class TrainConfig:
+    """Overall training pipeline configuration."""
     task: TaskType = "prediction"
     seed: int = 42
     device: str = "cuda"
@@ -155,6 +154,7 @@ class TrainConfig:
     sched: SchedConfig = field(default_factory=SchedConfig)
 
     callbacks: list[CallbackConfig] = field(default_factory=list)
+    cv: Optional[CvConfig] = None
 
 
 def asdict_shallow(dc_obj: Any) -> Dict[str, Any]:

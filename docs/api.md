@@ -28,7 +28,22 @@ The primary config object is `TrainConfig`, with nested dataclasses for each sub
 - `val_every`: validation frequency in epochs
 - `save_dir`: base run directory
 - `run_name`: run name prefix
-- `data`, `model`, `loss`, `optim`, `sched`, `callbacks`: nested configuration blocks
+- `data`, `model`, `loss`, `optim`, `sched`, `callbacks`, `cv`: nested configuration blocks
+
+### `CvConfig`
+
+If the `cv` block is configured, the training pipeline runs in **Nested Cross-Validation** mode.
+- `outer_method`: `"LOO"` (Leave-One-Out) or `"KFold"`
+- `outer_shuffle`: enable/disable shuffling outer folds
+- `outer_n_fold`: number of outer folds (for `"KFold"`)
+- `outer_mode`: splitting mode for custom KFold (`"per_event_strata"`, `"strata"`, `"split"`, `"random_split"`)
+- `outer_M`: number of samples per stratum in custom KFold
+- `inner_method`: `"LOO"` or `"KFold"`
+- `inner_n_fold`: number of inner folds
+- `inner_shuffle`: enable/disable shuffling inner folds
+- `inner_mode`: inner custom KFold splitting mode
+- `inner_M`: inner custom KFold stratum size
+- `random_state`: random seed for splitting reproducibility
 
 ### `DataConfig`
 
@@ -97,8 +112,11 @@ The repo ships a small splitter module in `seizure_pred.data.splits`.
 
 ### `make_cv_splitter(...)`
 
-- Compatibility helper that dispatches to outer or inner split modes
-- Supported `mode` values: `"leave_one_preictal"`, `"leave_one_out"`, `"stratified"`
+- Compatibility helper that dispatches to outer, inner, or custom strata split modes.
+- Supported `mode` / `method` values:
+  - `"LOO"` / `"leave_one_out"` / `"leave_one_preictal"`: dispatches to preictal leave-one-group-out.
+  - `"stratified"`: dispatches to standard scikit-learn `StratifiedKFold`.
+  - `"KFold"`: dispatches to custom strata-based chronological `KFold` splitter (using `mode` like `"per_event_strata"`, `"strata"`, etc. and stratum size `M`).
 
 ## Datasets
 

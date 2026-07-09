@@ -144,47 +144,178 @@ def stratified_kfold(
         yield SubsetWithInfo(dataset, train_idx.astype(int)), SubsetWithInfo(dataset, val_idx.astype(int))
 
 
-CVMode = Literal["leave_one_preictal", "leave_one_out", "stratified"]
+def split_into_strata(indices, N=5, M=10):
+    """Split indices into N strata, with M samples per stratum in each iteration."""
+    import math
+    max_M = math.ceil(len(indices) / (N + 1))
+    if M > max_M:
+        raise ValueError(
+            f"M={M} is too large for event length={len(indices)} and N={N} folds. "
+            f"Maximum valid M is {max_M}."
+        )
+
+    indices = np.sort(indices)
+    if len(indices) == 0:
+        return [np.array([]) for _ in range(N)]
+
+    splits = [[] for _ in range(N)]
+    i = 0
+
+    while i < len(indices):
+        for fold in range(N):
+            if i >= len(indices):
+                break
+            end = min(i + M, len(indices))
+            splits[fold].extend(indices[i:end])
+            i = end
+
+    return [np.array(s) for s in splits if len(s) > 0]
+
+
+def KFold(
+    dataset,
+    shuffle=True,
+    n_fold=5,
+    random_state=0,
+    mode: str = "per_event_strata",
+    M=10,
+):
+    """Custom K-Fold splitter supporting stratified chronological splits."""
+    rng = np.random.RandomState(random_state)
+
+    y = np.array(dataset.y)
+    group_ids = np.array(dataset.group_ids)
+    base_indices = np.arange(len(dataset))
+
+    # Separate classes
+    class0 = base_indices[y == 0]
+    class1 = base_indices[y == 1]
+
+    # Unique seizure groups
+    seizure_groups = np.unique(group_ids[y == 1])
+    background_groups = np.unique(group_ids[y == 0])
+
+    # ---------- MODE 1: RANDOM ----------
+    if mode == "random_split" or mode == "split":
+        if mode == "random_split":
+            rng.shuffle(class0)
+            rng.shuffle(class1)
+
+        cls0_splits = np.array_split(class0, n_fold)
+        cls1_splits = np.array_split(class1, n_fold)
+
+    # ---------- MODE 2: STRATA ----------
+    elif mode == "strata":
+        cls0_splits = split_into_strata(class0, N=n_fold, M=M)
+        cls1_splits = split_into_strata(class1, N=n_fold, M=M)
+
+    # ---------- MODE 3: PER-EVENT STRATA ----------
+    elif mode == "per_event_strata":
+        # Split background events one-by-one
+        bg_splits = []
+        for gid in background_groups:
+            inds = base_indices[(group_ids == gid) & (y == 0)]
+            bg_splits.append(split_into_strata(inds, N=n_fold, M=M))
+
+        # Combine background stratification across events
+        combined_bg_splits = []
+        for k in range(n_fold):
+            combined_bg_splits.append(np.concatenate([event[k] for event in bg_splits if len(event) > k]))
+
+        # Split seizure events one-by-one
+        sz_splits = []
+        for gid in seizure_groups:
+            inds = base_indices[(group_ids == gid) & (y == 1)]
+            sz_splits.append(split_into_strata(inds, N=n_fold, M=M))
+
+        # Combine seizure stratification across events
+        combined_sz_splits = []
+        for k in range(n_fold):
+            combined_sz_splits.append(np.concatenate([event[k] for event in sz_splits if len(event) > k]))
+
+        cls0_splits = combined_bg_splits
+        cls1_splits = combined_sz_splits
+
+    else:
+        raise ValueError(
+            f"Unknown mode '{mode}'. Use random_split, split, strata, per_event_strata."
+        )
+
+    for k in range(n_fold):
+        # Guard against index errors
+        cls0_val = cls0_splits[k] if k < len(cls0_splits) else np.array([], dtype=int)
+        cls1_val = cls1_splits[k] if k < len(cls1_splits) else np.array([], dtype=int)
+        
+        val_idx = np.concatenate([cls0_val, cls1_val]).astype(int)
+        
+        cls0_train_parts = [cls0_splits[i] for i in range(len(cls0_splits)) if i != k]
+        cls1_train_parts = [cls1_splits[i] for i in range(len(cls1_splits)) if i != k]
+        
+        cls0_train = np.concatenate(cls0_train_parts) if cls0_train_parts else np.array([], dtype=int)
+        cls1_train = np.concatenate(cls1_train_parts) if cls1_train_parts else np.array([], dtype=int)
+        
+        train_idx = np.concatenate([cls0_train, cls1_train]).astype(int)
+
+        if shuffle:
+            train_idx = rng.permutation(train_idx)
+            val_idx = rng.permutation(val_idx)
+
+        yield (SubsetWithInfo(dataset, train_idx), SubsetWithInfo(dataset, val_idx))
 
 
 def make_cv_splitter(
-    dataset: Union[CHBMITDataset, SubsetWithInfo],
+    dataset: Union[BaseDataset, SubsetWithInfo],
     *,
-    mode: CVMode,
+    mode: Optional[str] = None,
     method: Optional[str] = None,
-    n_folds: int = 5,
+    n_folds: Optional[int] = None,
+    n_fold: Optional[int] = None,
     shuffle: bool = False,
     random_state: int = 0,
+    M: int = 10,
 ) -> Iterator[Tuple[SubsetWithInfo, SubsetWithInfo]]:
-    """Compatibility helper (mirrors the old repo's make_cv_splitter API).
+    """Helper to perform dataset splits for cross-validation."""
+    # Filter dataset first to keep only samples allowed for training
+    if hasattr(dataset, "is_used_in_train"):
+        mask = getattr(dataset, "is_used_in_train")
+        if mask is not None:
+            dataset = SubsetWithInfo(dataset, np.where(np.asarray(mask))[0])
 
-    Parameters
-    ----------
-    mode:
-      - "leave_one_preictal" / "leave_one_out": outer CV split by preictal event groups
-      - "stratified": inner CV split within a training subset
+    resolved_method = method
+    if resolved_method is None:
+        if mode in {"leave_one_preictal", "leave_one_out", "LOO"}:
+            resolved_method = "LOO"
+        elif mode == "stratified":
+            resolved_method = "stratified"
+        elif mode == "KFold":
+            resolved_method = "KFold"
+        else:
+            resolved_method = "LOO"  # fallback
 
-    method:
-      - outer: "balanced" (supported)
-      - inner: currently ignored (stratification already balances label ratios)
-    """
+    resolved_n_folds = n_folds if n_folds is not None else (n_fold if n_fold is not None else 5)
 
-    if mode in {"leave_one_preictal", "leave_one_out"}:
-        yield from leave_one_preictal(
+    if resolved_method == "LOO":
+        yield from leave_one_out(
             dataset,
-            method=(method or "balanced"),
-            shuffle_interictal=bool(shuffle),
-            random_state=int(random_state),
+            shuffle_interictal=shuffle,
+            random_state=random_state
         )
-        return
-
-    if mode == "stratified":
+    elif resolved_method == "stratified":
         yield from stratified_kfold(
             dataset,
-            n_folds=int(n_folds),
-            shuffle=bool(shuffle),
-            random_state=int(random_state),
+            n_folds=resolved_n_folds,
+            shuffle=shuffle,
+            random_state=random_state
         )
-        return
-
-    raise ValueError(f"Unknown CV mode: {mode}")
+    elif resolved_method == "KFold":
+        kfold_mode = mode if mode in {"random_split", "split", "strata", "per_event_strata"} else "per_event_strata"
+        yield from KFold(
+            dataset,
+            shuffle=shuffle,
+            n_fold=resolved_n_folds,
+            random_state=random_state,
+            mode=kfold_mode,
+            M=M,
+        )
+    else:
+        raise ValueError(f"Unknown CV method: {resolved_method}")

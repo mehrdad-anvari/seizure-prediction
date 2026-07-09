@@ -155,3 +155,98 @@ def predict(
     if pending_rows:
         for r in _apply_postprocess(pending_rows):
             yield r
+
+
+@torch.no_grad()
+def predict_ensemble(
+    models: list[torch.nn.Module],
+    weights: list[float] | Any,
+    loader: Iterable,
+    *,
+    device: str | torch.device = "cpu",
+    is_mil: bool = False,
+    threshold: float = 0.5,
+    postprocess: Optional[object] = None,
+) -> Iterator[Dict[str, Any]]:
+    """Yield ensembled prediction rows from a list of models."""
+    dev = torch.device(device) if not isinstance(device, torch.device) else device
+    for m in models:
+        m.eval()
+        m.to(dev)
+
+    weights_t = torch.tensor(weights, dtype=torch.float32, device=dev)
+    if weights_t.sum() > 0:
+        weights_t = weights_t / weights_t.sum()
+    else:
+        weights_t = torch.ones_like(weights_t) / len(weights_t)
+
+    pp = postprocess
+    pending_rows: list[Dict[str, Any]] = []
+
+    def _apply_postprocess(rows: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
+        if pp is None or not rows:
+            return rows
+
+        labels = [int(r["y_pred"]) for r in rows]
+        if hasattr(pp, "apply"):
+            labels_pp = pp.apply(labels)
+        else:
+            labels_pp = pp(labels)
+
+        for r, lp in zip(rows, labels_pp):
+            r["y_pred_post"] = int(lp)
+        return rows
+
+    for batch in loader:
+        if isinstance(batch, dict):
+            x = batch["x"]
+            y = batch["y"]
+            meta = batch.get("meta")
+        else:
+            x, y, meta = batch
+
+        x = x.to(dev)
+        y = y.to(dev)
+
+        # Collect predictions from all models
+        probs_all = []
+        logits_all = []
+        for model in models:
+            logits = model(x)
+            if hasattr(logits, "logits"):
+                logits = logits.logits
+            logits = _to_binary_logits(logits)
+            probs = torch.sigmoid(logits)
+            probs_all.append(probs)
+            logits_all.append(logits)
+
+        probs_stack = torch.stack(probs_all, dim=0)   # shape (num_models, B)
+        logits_stack = torch.stack(logits_all, dim=0)  # shape (num_models, B)
+
+        # Weighted average over models
+        probs_ensemble = (probs_stack * weights_t.view(-1, 1)).sum(dim=0)
+        logits_ensemble = (logits_stack * weights_t.view(-1, 1)).sum(dim=0)
+
+        y_pred = (probs_ensemble >= threshold).to(torch.int64)
+
+        # Emit rows
+        bsz = int(y.shape[0])
+        for i in range(bsz):
+            row = {
+                "y_true": _to_int(y[i]),
+                "logit": float(logits_ensemble[i].detach().cpu().item()),
+                "prob": float(probs_ensemble[i].detach().cpu().item()),
+                "y_pred": int(y_pred[i].detach().cpu().item()),
+                "meta": _meta_to_jsonable(meta[i] if isinstance(meta, (list, tuple)) else meta),
+            }
+            pending_rows.append(row)
+
+        if pp is not None and len(pending_rows) >= 2048:
+            for r in _apply_postprocess(pending_rows):
+                yield r
+            pending_rows = []
+
+    # Flush
+    if pending_rows:
+        for r in _apply_postprocess(pending_rows):
+            yield r

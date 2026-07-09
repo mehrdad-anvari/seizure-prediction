@@ -75,6 +75,23 @@ and call them from `analysis/runner.py`.
 
 ---
 
+## Old: Nested CV in `train.py`
+
+In the old repository, nested cross-validation (outer and inner loops) was implemented inside `train.py`, and prediction was run on the held-out splits.
+
+### New: Native Nested CV Support
+
+Nested cross-validation is natively supported by the new library when the `cv` configuration block is defined in your config file, or overridden via the CLI:
+
+```bash
+seizure-pred train --config config.json \
+  --outer-method LOO --inner-method KFold --inner-n-fold 5 --inner-mode per_event_strata
+```
+
+During nested CV, models are saved under `split_{outer_idx}/inner_split_{inner_idx}/` and ensembled test predictions (weighted by inner validation AUCs) are automatically generated at `split_{outer_idx}/predictions.jsonl` along with `raw_predictions.pkl` for legacy analysis scripts.
+
+---
+
 ## Component mapping quick table
 
 | Old concept | New concept |
