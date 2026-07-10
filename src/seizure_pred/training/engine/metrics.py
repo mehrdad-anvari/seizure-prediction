@@ -3,9 +3,65 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Optional
 
+import numpy as np
 import torch
 
 Tensor = torch.Tensor
+
+
+def binary_auc(probs: np.ndarray, targets: np.ndarray) -> float:
+    """ROC-AUC for binary labels via the rank-based (Mann-Whitney U) statistic.
+
+    Equivalent to the area under the ROC curve and robust to ties because ranks
+    are averaged. No sklearn dependency. Returns 0.5 when undefined.
+    """
+    p = np.asarray(probs, dtype=np.float64).ravel()
+    y = np.asarray(targets, dtype=np.int64).ravel()
+    n_pos = int((y == 1).sum())
+    n_neg = int((y == 0).sum())
+    if n_pos == 0 or n_neg == 0:
+        return 0.5
+
+    # Average ranks (1-based); ties share the mean of their ranks.
+    order = np.argsort(p, kind="mergesort")
+    ranks = np.empty(len(p), dtype=np.float64)
+    ranks[order] = np.arange(1, len(p) + 1, dtype=np.float64)
+    # resolve ties by averaging ranks of equal values
+    sorted_p = p[order]
+    i = 0
+    while i < len(sorted_p):
+        j = i
+        while j + 1 < len(sorted_p) and sorted_p[j + 1] == sorted_p[i]:
+            j += 1
+        if j > i:
+            avg = (ranks[order[i]] + ranks[order[j]]) / 2.0
+            for k in range(i, j + 1):
+                ranks[order[k]] = avg
+        i = j + 1
+
+    sum_pos = float(ranks[y == 1].sum())
+    auc = (sum_pos - n_pos * (n_pos + 1) / 2.0) / (n_pos * n_neg)
+    return float(auc)
+
+
+def binary_average_precision(probs: np.ndarray, targets: np.ndarray) -> float:
+    """Average precision (area under PR curve) without sklearn."""
+    p = np.asarray(probs, dtype=np.float64).ravel()
+    y = np.asarray(targets, dtype=np.int64).ravel()
+    n_pos = int((y == 1).sum())
+    if n_pos == 0:
+        return 0.0
+    order = np.argsort(-p, kind="mergesort")
+    y_sorted = y[order]
+    tp = np.cumsum(y_sorted == 1)
+    fp = np.cumsum(y_sorted == 0)
+    precision = tp / np.maximum(1.0, tp + fp)
+    recall = tp / n_pos
+    # stepwise PR area
+    ap = float(np.sum((recall[1:] - recall[:-1]) * precision[1:])) if len(recall) > 1 else 0.0
+    # include the first point
+    ap += float(precision[0] * recall[0])
+    return float(min(1.0, max(0.0, ap)))
 
 
 @dataclass
@@ -54,7 +110,9 @@ def logits_to_pred(logits: Tensor) -> Tensor:
 def binary_classification_metrics(logits: Tensor, targets: Tensor, *, threshold: float = 0.5) -> Dict[str, float]:
     """Compute binary classification metrics from logits/targets.
 
-    Returns: acc, precision, recall, f1 and confusion counts.
+    Returns: acc, precision, recall, f1, auc, ap and confusion counts.
+
+    AUC/AP are computed from sigmoid probabilities (rank-based, no sklearn).
     """
     y_true = targets.detach().view(-1).to(torch.int64)
     probs = torch.sigmoid(logits.detach().view(-1))
@@ -71,11 +129,16 @@ def binary_classification_metrics(logits: Tensor, targets: Tensor, *, threshold:
     recall = tp / max(eps, (tp + fn))
     f1 = (2 * precision * recall) / max(eps, (precision + recall))
 
+    auc = binary_auc(probs.detach().cpu().numpy(), y_true.detach().cpu().numpy())
+    ap = binary_average_precision(probs.detach().cpu().numpy(), y_true.detach().cpu().numpy())
+
     return {
         "acc": float(acc),
         "precision": float(precision),
         "recall": float(recall),
         "f1": float(f1),
+        "auc": float(auc),
+        "ap": float(ap),
         "tp": tp,
         "fp": fp,
         "tn": tn,

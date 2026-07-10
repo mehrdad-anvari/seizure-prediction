@@ -1,3 +1,13 @@
+# Example: seizure PREDICTION (binary) on CHB-MIT NPZ sessions.
+#
+# Single-level cross-validation (no `cv:` block). The training CLI sweeps the
+# split_method below and writes one run dir per split:
+#   runs/pred_demo/<stamp>/split_<k>/
+#
+# Tip: select the best checkpoint by validation AUC instead of val_loss with:
+#   monitor: auc
+#   monitor_mode: max
+
 task: prediction
 seed: 42
 device: cuda
@@ -8,6 +18,10 @@ log_every: 10
 save_dir: runs
 run_name: pred_demo
 
+# Select best epoch by validation AUC (matches the legacy "best by val AUC").
+monitor: auc
+monitor_mode: max
+
 data:
   name: chbmit_npz
   dataset_dir: data/BIDS_CHB-MIT
@@ -16,10 +30,10 @@ data:
   batch_size: 32
   num_workers: 4
   use_uint16: false
-  split_method: "stratified"
-  n_fold: 5
+  split_method: "stratified"   # leave_one_preictal | leave_one_out | stratified
+  n_folds: 5
   shuffle: true
-  dataloader_type: "undersample"
+  dataloader_type: "undersample"  # undersample | mil | torch
   suffix: fd_5s
 
 model:
@@ -40,3 +54,10 @@ optim:
 sched:
   name: null
   kwargs: {}
+
+# Optional inference post-processing applied by `seizure-pred predict --apply-postprocess`.
+# postprocess:
+#   name: moving_average
+#   kwargs:
+#     window: 5
+#     threshold: 0.5

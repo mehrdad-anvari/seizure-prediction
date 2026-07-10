@@ -19,6 +19,10 @@ data:
   dataloader_type: "undersample"
   suffix: fd_5s
 
+# Select best epoch by validation AUC for each inner fold.
+monitor: auc
+monitor_mode: max
+
 # Nested CV configuration block
 cv:
   outer_method: "LOO"             # Outer CV method: LOO (Leave-One-Out) or KFold

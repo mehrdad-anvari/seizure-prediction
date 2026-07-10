@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, is_dataclass
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Type, TypeVar, Union, get_args, get_origin
+from typing import Any, Dict, get_args, get_origin, get_type_hints, Iterable, List, Optional, Tuple, Type, TypeVar, Union
 
 from seizure_pred.core.config import TrainConfig
 
@@ -86,6 +86,13 @@ def validate_dict(d: Dict[str, Any], dataclass_type: Type[T], *, path: str = "cf
     errs: List[str] = []
     fields = dataclass_type.__dataclass_fields__  # type: ignore[attr-defined]
 
+    # Resolve postponed (string) annotations so nested dataclasses / Optionals
+    # are validated. Falls back to raw field.type if resolution fails.
+    try:
+        type_hints = get_type_hints(dataclass_type)
+    except Exception:
+        type_hints = {}
+
     # unknown keys
     for k in d.keys():
         if k not in fields:
@@ -98,11 +105,10 @@ def validate_dict(d: Dict[str, Any], dataclass_type: Type[T], *, path: str = "cf
             if f.default is not f.default_factory:  # type: ignore
                 # default exists or default_factory exists
                 continue
-            # if both default and default_factory missing, treat as required
-            # dataclasses always have something, but keep robust:
             continue
 
-        errs += _check_value(f"{path}.{name}", d[name], f.type)
+        ftype = type_hints.get(name, f.type)
+        errs += _check_value(f"{path}.{name}", d[name], ftype)
 
     return errs
 

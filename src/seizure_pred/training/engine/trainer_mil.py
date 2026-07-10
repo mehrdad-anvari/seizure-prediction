@@ -12,6 +12,7 @@ from seizure_pred.core.config import TrainConfig
 from seizure_pred.training.engine.callbacks import CallbackList
 from seizure_pred.training.engine.metrics import binary_classification_metrics
 from seizure_pred.training.engine.artifacts import ArtifactWriter
+from seizure_pred.training.engine.trainer import _monitor_value, _monitor_mode, _is_better, _validate_monitor
 
 
 class TrainerMIL:
@@ -59,6 +60,8 @@ class TrainerMIL:
         self.writer = artifact_writer or ArtifactWriter(run_dir)
         self.callbacks = CallbackList(callbacks or [])
 
+        _validate_monitor(cfg)
+
         os.makedirs(self.run_dir, exist_ok=True)
         self.model.to(self.device)
 
@@ -81,6 +84,12 @@ class TrainerMIL:
         """
         state: Dict[str, Any] = {"trainer": self, "epoch": 0, "best_val_loss": float("inf")}
         self.callbacks.on_train_start(state)
+
+        mode = _monitor_mode(self.cfg)
+        best_value = float("inf") if mode == "min" else float("-inf")
+        state["monitor"] = getattr(self.cfg, "monitor", "val_loss") or "val_loss"
+        state["monitor_mode"] = mode
+        state["best_monitor_value"] = best_value
 
         best_ckpt_path = ""
         last_ckpt_path = ""
@@ -117,8 +126,12 @@ class TrainerMIL:
                     except Exception:
                         pass
 
-            if val_loss < float(state["best_val_loss"]):
+            mon_val = _monitor_value(self.cfg, val_loss, state["val_metrics"])
+            improved = mon_val is not None and _is_better(mon_val, best_value, mode)
+            if improved:
+                best_value = mon_val  # type: ignore[assignment]
                 state["best_val_loss"] = val_loss
+                state["best_monitor_value"] = best_value
                 try:
                     best_ckpt_path = self.writer.save_best_checkpoint(
                         model=self.model,
