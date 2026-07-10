@@ -81,15 +81,21 @@ class EEGBandEmbeddingNet(nn.Module):
         return embedding
 
 class EEGBandClassifier(nn.Module):
-    def __init__(self, n_classes=2, n_bands=5):
+    def __init__(self, n_classes: int = 2, n_bands: int = 5, n_channels: int = 18, **kwargs):
         super().__init__()
-        self.embedding_net = EEGBandEmbeddingNet(n_channels=18, n_bands=n_bands, n_output_features=16)
+        actual_classes = kwargs.get("num_classes", n_classes)
+        actual_channels = kwargs.get("in_channels", n_channels)
+        self.embedding_net = EEGBandEmbeddingNet(
+            n_channels=actual_channels,
+            n_bands=n_bands,
+            n_output_features=16,
+        )
         self.classifier = nn.Sequential(
             nn.Linear(32, 32),
             nn.ReLU(),
             nn.Dropout(p=0.1),
             nn.BatchNorm1d(32),
-            nn.Linear(32, n_classes)
+            nn.Linear(32, actual_classes)
         )
 
     def forward(self, x):
@@ -125,12 +131,22 @@ if __name__ == "__main__":
 from seizure_pred.core.config import ModelConfig
 from seizure_pred.training.registries import MODELS
 
+def _build_eeg_band_classifier_common(cfg: ModelConfig) -> EEGBandClassifier:
+    kw = dict(getattr(cfg, "kwargs", {}) or {})
+    in_ch = cfg.in_channels or kw.get("in_channels", kw.get("num_electrodes", 18))
+    n_classes = cfg.num_classes or kw.get("num_classes", kw.get("n_classes", 2))
+    n_bands = kw.get("n_bands", 5)
+    return EEGBandClassifier(
+        n_classes=int(n_classes),
+        n_bands=int(n_bands),
+        n_channels=int(in_ch),
+        **{k: v for k, v in kw.items() if k not in {"in_channels", "num_electrodes", "num_classes", "n_classes", "n_bands"}}
+    )
+
 @MODELS.register("eeg_band_classifier", help="EEG bandpower classifier baseline.")
 def build_eeg_band_classifier(cfg: ModelConfig):
-    kw = dict(getattr(cfg, "kwargs", {}) or {})
-    in_ch = cfg.in_channels or kw.get("in_channels", kw.get("num_electrodes", 19))
-    return EEGBandClassifier(
-        in_channels=int(in_ch),
-        num_classes=int(getattr(cfg, "num_classes", 2)),
-        **{k:v for k,v in kw.items() if k not in {"in_channels","num_electrodes"}}
-    )
+    return _build_eeg_band_classifier_common(cfg)
+
+@MODELS.register("eegbandclassifier", help="Legacy name for EEG bandpower classifier.")
+def build_eegbandclassifier(cfg: ModelConfig):
+    return _build_eeg_band_classifier_common(cfg)

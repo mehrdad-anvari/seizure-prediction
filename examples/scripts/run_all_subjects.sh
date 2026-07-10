@@ -60,11 +60,12 @@ EOF
     fi
     rm -f "$OVERRIDE_FILE"
 
-    # Find latest split dir under runs/<run_name>/<stamp>/split_0
+    # Find latest split dir under runs/<run_name>/<timestamp>/split_0
     LATEST_SPLIT_DIR=$(ls -td runs/${MODEL}_sub${SUBJECT}_${SUFFIX}/*/split_0 2>/dev/null | head -n 1 || true)
     if [ -d "$LATEST_SPLIT_DIR" ]; then
-      echo "--> Analyzing: $LATEST_SPLIT_DIR"
-      python examples/scripts/analyze_results.py --run-dir "$LATEST_SPLIT_DIR" || true
+      LATEST_RUN_DIR=$(dirname "$LATEST_SPLIT_DIR")
+      echo "--> Analyzing: $LATEST_RUN_DIR"
+      seizure-pred analyze --run-dir "$LATEST_RUN_DIR" || true
     else
       echo "WARNING: could not locate split dir for analysis."
     fi

@@ -127,3 +127,75 @@ def auc_trapz(x: np.ndarray, y: np.ndarray) -> float:
     if x.size < 2:
         return 0.0
     return float(np.trapezoid(y, x))
+
+
+def moving_average_segmented(probs: np.ndarray, y: np.ndarray, window_size: int = 3) -> np.ndarray:
+    """Apply moving average smoothing within contiguous regions of equal labels.
+
+    This avoids smoothing across boundary transitions between interictal and preictal.
+    """
+    if len(probs) < window_size or window_size <= 1:
+        return probs.copy()
+
+    y = np.asarray(y)
+    smoothed_probs = probs.copy().astype(float)
+
+    # Find contiguous regions of identical labels
+    regions = []
+    start = 0
+    for i in range(1, len(y)):
+        if y[i] != y[i - 1]:
+            regions.append((start, i))
+            start = i
+    regions.append((start, len(y)))  # Last region
+
+    # Apply moving average within each region
+    for start, end in regions:
+        region_len = end - start
+        if region_len >= window_size:
+            for i in range(start, end):
+                win_start = max(start, i - window_size + 1)
+                win_end = i + 1
+                smoothed_probs[i] = np.mean(probs[win_start:win_end])
+        else:
+            for i in range(start, end):
+                win_start = start
+                win_end = i + 1
+                smoothed_probs[i] = np.mean(probs[win_start:win_end])
+
+    return smoothed_probs
+
+
+def clinical_metrics(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    sampling_period: float = 5.0,
+) -> dict[str, float]:
+    """Compute clinical event-level metrics: sensitivity and FPR per hour.
+
+    - Sensitivity: 1.0 if at least one preictal segment (y_true == 1) has a positive prediction (y_pred == 1), 0.0 if not.
+    - FPR per hour: Computed over interictal samples only (y_true == 0).
+    """
+    y_true = np.asarray(y_true)
+    y_pred = np.asarray(y_pred)
+
+    metrics = {}
+
+    # Sensitivity: at least one preictal detected
+    has_preictal = np.any(y_true == 1)
+    if has_preictal:
+        detected = np.any((y_true == 1) & (y_pred == 1))
+        metrics["sensitivity"] = 1.0 if detected else 0.0
+    else:
+        metrics["sensitivity"] = float("nan")
+
+    # FPR per hour - computed over interictal time only
+    interictal_mask = (y_true == 0)
+    false_positives = np.sum(interictal_mask & (y_pred == 1))
+    interictal_samples = np.sum(interictal_mask)
+    interictal_hours = (interictal_samples * sampling_period) / 3600.0
+    metrics["fpr_per_hour"] = (
+        float(false_positives / interictal_hours) if interictal_hours > 0 else float("nan")
+    )
+
+    return metrics

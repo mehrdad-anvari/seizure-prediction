@@ -29,7 +29,7 @@ def register_all() -> None:
     from . import lmda  # noqa: F401
     from . import tslanet  # noqa: F401
     from . import simplevit  # noqa: F401
-    from . import eegbandclassifier  # noqa: F401
+    from . import eeg_band_classifier  # noqa: F401
 
     # Additional models ported from the original repository (torch-only)
     from . import mb_dmgc_cwtffnet  # noqa: F401
