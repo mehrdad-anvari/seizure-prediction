@@ -40,15 +40,25 @@ class SubsetWithInfo(Subset):
 def leave_one_out(
     dataset: Union[CHBMITDataset, SubsetWithInfo],
     *,
+    method: Literal["balanced", "balanced_shuffled", "nearest"] = "balanced",
     shuffle_interictal: bool = False,
     random_state: int = 0,
 ) -> Iterator[Tuple[SubsetWithInfo, SubsetWithInfo]]:
     """Leave-one-positive-event-out splitter.
 
-    This mirrors your original `leave_one_out` behavior:
-    - keep only samples allowed for training (`dataset.is_used_in_train`)
-    - split by `group_ids` among positive events
-    - partition negative indices into the same number of folds
+    This mirrors the original ``leave_one_out`` / ``leave_one_preictal`` behavior:
+    - keep only samples allowed for training (``dataset.is_used_in_train``)
+    - split by ``group_ids`` among positive (preictal/seizure) events
+    - partition negative (interictal) indices into the same number of folds
+
+    Methods
+    -------
+    - ``balanced``: partition negatives evenly (chronological order) across folds.
+    - ``balanced_shuffled``: same as balanced but negatives are shuffled first
+      (``shuffle_interictal=True`` is equivalent).
+    - ``nearest``: the test negatives for each fold are the temporally nearest
+      interictal windows to the held-out positive event (reduces the
+      train/test distribution mismatch for time-adjacent data).
 
     Yielded:
         (train_subset, test_subset)
@@ -71,27 +81,54 @@ def leave_one_out(
     pos_groups = np.unique(group_id[pos_mask])
     neg_indices = np.where(neg_mask)[0]
 
-    if shuffle_interictal:
-        rng = np.random.default_rng(seed=random_state)
+    rng = np.random.default_rng(seed=random_state)
+    if method == "balanced_shuffled":
         rng.shuffle(neg_indices)
 
     n_splits = len(pos_groups)
     if n_splits == 0:
         raise ValueError("No positive groups found for leave_one_out splitting")
 
-    chunks = np.array_split(neg_indices, n_splits)
-    neg_chunks = {g: np.asarray(chunks[i], dtype=int) for i, g in enumerate(pos_groups)}
+    base_indices = getattr(dataset, "base_indices", None)
+    base_indices = np.asarray(base_indices) if base_indices is not None else np.arange(len(y))
 
-    for test_group in neg_chunks.keys():
-        pos_test_mask = group_id == test_group
-        pos_train_mask = pos_mask & ~pos_test_mask
+    # Build the per-fold negative test assignment.
+    if method == "nearest":
+        neg_base = base_indices[neg_indices]
+        neg_test_for_group: dict = {}
+        n_per_fold = max(1, len(neg_indices) // n_splits)
+        for g in pos_groups:
+            pos_test_idx = np.where((group_id == g) & pos_mask)[0]
+            if len(pos_test_idx) == 0:
+                neg_test_for_group[g] = np.array([], dtype=int)
+                continue
+            pos_base = base_indices[pos_test_idx]
+            # distance from each negative to the nearest positive window
+            dist = np.min(np.abs(neg_base[:, None] - pos_base[None, :]), axis=1)
+            nearest_order = np.argsort(dist, kind="stable")
+            neg_test_for_group[g] = neg_indices[nearest_order[:n_per_fold]]
+        # train negatives = all negatives not selected as any test fold
+        all_test_neg = np.unique(np.concatenate([neg_test_for_group[g] for g in pos_groups]))
+        neg_train_global = np.setdiff1d(neg_indices, all_test_neg)
+    else:
+        chunks = np.array_split(neg_indices, n_splits)
+        neg_test_for_group = {g: np.asarray(chunks[i], dtype=int) for i, g in enumerate(pos_groups)}
+
+    for test_group in pos_groups:
+        # Robust to datasets where positive/negative samples share a group_id:
+        # only positives of the held-out event form the test "positive" set.
+        pos_test_mask = pos_mask & (group_id == test_group)
+        pos_train_mask = pos_mask & (group_id != test_group)
 
         pos_train_idx = np.where(pos_train_mask)[0]
         pos_test_idx = np.where(pos_test_mask)[0]
 
-        neg_test_idx = neg_chunks[test_group]
-        others = [neg_chunks[g] for g in pos_groups if g != test_group]
-        neg_train_idx = np.hstack(others).astype(int) if len(others) else np.asarray([], dtype=int)
+        neg_test_idx = neg_test_for_group[test_group]
+        if method == "nearest":
+            neg_train_idx = neg_train_global
+        else:
+            others = [neg_test_for_group[g] for g in pos_groups if g != test_group]
+            neg_train_idx = np.hstack(others).astype(int) if len(others) else np.asarray([], dtype=int)
 
         train_idx = np.concatenate([pos_train_idx, neg_train_idx]).astype(int)
         test_idx = np.concatenate([pos_test_idx, neg_test_idx]).astype(int)
@@ -102,18 +139,26 @@ def leave_one_out(
 def leave_one_preictal(
     dataset: Union[CHBMITDataset, SubsetWithInfo],
     *,
-    method: Literal["balanced"] = "balanced",
+    method: Literal["balanced", "balanced_shuffled", "nearest"] = "balanced",
     shuffle_interictal: bool = False,
     random_state: int = 0,
 ) -> Iterator[Tuple[SubsetWithInfo, SubsetWithInfo]]:
-    """Alias for your original "leave_one_preictal" outer-CV mode.
+    """Alias for the original "leave_one_preictal" outer-CV mode.
 
-    Currently only method="balanced" is implemented (interictal windows are partitioned evenly).
+    Methods
+    -------
+    - ``balanced``: partition interictal windows evenly across folds.
+    - ``balanced_shuffled``: balanced + randomized selection of interictal windows.
+    - ``nearest``: use temporally nearest interictal windows to each held-out event.
     """
-
-    if method != "balanced":
-        raise ValueError(f"Unsupported method={method!r}. Only 'balanced' is supported.")
-    yield from leave_one_out(dataset, shuffle_interictal=shuffle_interictal, random_state=random_state)
+    if shuffle_interictal and method == "balanced":
+        method = "balanced_shuffled"
+    yield from leave_one_out(
+        dataset,
+        method=method,
+        shuffle_interictal=shuffle_interictal,
+        random_state=random_state,
+    )
 
 
 def stratified_kfold(
@@ -295,10 +340,16 @@ def make_cv_splitter(
     resolved_n_folds = n_folds if n_folds is not None else (n_fold if n_fold is not None else 5)
 
     if resolved_method == "LOO":
+        loo_method = "balanced"
+        if mode in {"balanced", "balanced_shuffled", "nearest"}:
+            loo_method = mode
+        elif shuffle:
+            loo_method = "balanced_shuffled"
         yield from leave_one_out(
             dataset,
+            method=loo_method,
             shuffle_interictal=shuffle,
-            random_state=random_state
+            random_state=random_state,
         )
     elif resolved_method == "stratified":
         yield from stratified_kfold(

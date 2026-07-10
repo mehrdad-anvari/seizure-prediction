@@ -17,6 +17,7 @@ def build_parser() -> argparse.ArgumentParser:
     from .preprocess_cmd import add_preprocess_cmd
     from .analyze_cmd import add_analyze_cmd
     from .experiments_cmd import add_experiments_cmd
+    from .benchmark_cmd import add_benchmark_cmd
 
     add_list_cmd(sub)
     add_train_cmd(sub)
@@ -24,6 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_preprocess_cmd(sub)
     add_analyze_cmd(sub)
     add_experiments_cmd(sub)
+    add_benchmark_cmd(sub)
 
     return p
 

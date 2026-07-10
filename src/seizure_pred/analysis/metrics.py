@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 
@@ -170,16 +170,30 @@ def clinical_metrics(
     y_true: np.ndarray,
     y_pred: np.ndarray,
     sampling_period: float = 5.0,
+    suppression_duration: Optional[int] = None,
 ) -> dict[str, float]:
     """Compute clinical event-level metrics: sensitivity and FPR per hour.
 
-    - Sensitivity: 1.0 if at least one preictal segment (y_true == 1) has a positive prediction (y_pred == 1), 0.0 if not.
-    - FPR per hour: Computed over interictal samples only (y_true == 0).
+    - Sensitivity: 1.0 if at least one preictal segment (y_true == 1) has a
+      positive prediction (y_pred == 1), 0.0 otherwise. NaN if no preictal.
+    - fpr_per_hour: false positives per hour computed over interictal samples
+      (y_true == 0) only.
+    - fpr_per_hour_suppressed (optional): same as fpr_per_hour but after applying
+      a suppression window. Once an alarm fires, subsequent positives within
+      ``suppression_duration`` windows are not counted as new false alarms
+      (mirrors the legacy "FPR_sup" metric). Only computed when
+      ``suppression_duration`` is a positive int.
+
+    Parameters
+    ----------
+    suppression_duration:
+        Number of consecutive windows to suppress after any alarm (positive
+        prediction). ``None`` or <= 0 disables suppression.
     """
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
 
-    metrics = {}
+    metrics: dict[str, float] = {}
 
     # Sensitivity: at least one preictal detected
     has_preictal = np.any(y_true == 1)
@@ -190,12 +204,32 @@ def clinical_metrics(
         metrics["sensitivity"] = float("nan")
 
     # FPR per hour - computed over interictal time only
-    interictal_mask = (y_true == 0)
-    false_positives = np.sum(interictal_mask & (y_pred == 1))
-    interictal_samples = np.sum(interictal_mask)
-    interictal_hours = (interictal_samples * sampling_period) / 3600.0
-    metrics["fpr_per_hour"] = (
-        float(false_positives / interictal_hours) if interictal_hours > 0 else float("nan")
-    )
+    def _fpr_per_hour(pred: np.ndarray) -> float:
+        interictal_mask = (y_true == 0)
+        false_positives = np.sum(interictal_mask & (pred == 1))
+        interictal_samples = np.sum(interictal_mask)
+        interictal_hours = (interictal_samples * sampling_period) / 3600.0
+        return float(false_positives / interictal_hours) if interictal_hours > 0 else float("nan")
+
+    metrics["fpr_per_hour"] = _fpr_per_hour(y_pred)
+
+    # Suppression-based FPR: after any alarm, suppress the next
+    # `suppression_duration` windows from counting as new alarms.
+    if suppression_duration is not None and int(suppression_duration) > 0:
+        sup = int(suppression_duration)
+        sup_pred = y_pred.copy()
+        i = 0
+        n = len(sup_pred)
+        while i < n:
+            if sup_pred[i] == 1:
+                # suppress following `sup` windows (turn them off for counting)
+                end = min(n, i + 1 + sup)
+                sup_pred[i + 1:end] = 0
+                i = end
+            else:
+                i += 1
+        metrics["fpr_per_hour_suppressed"] = _fpr_per_hour(sup_pred)
+    else:
+        metrics["fpr_per_hour_suppressed"] = metrics["fpr_per_hour"]
 
     return metrics

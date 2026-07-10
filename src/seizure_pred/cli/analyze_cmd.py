@@ -13,12 +13,35 @@ def add_analyze_cmd(sub: argparse._SubParsersAction) -> None:
     p.add_argument("--prefer-postprocessed", action="store_true", help="Use y_pred_post if present")
     p.add_argument("--no-plots", action="store_true", help="Skip writing plots (CI-friendly)")
     p.add_argument("--sampling-period", type=float, default=5.0, help="Duration of each prediction sample in seconds")
+
+    # Calibration sweep (nested-CV runs with raw_predictions.pkl)
+    p.add_argument("--calibration-methods", nargs="+", default=None,
+                   help="Calibration methods to sweep (nested CV runs). "
+                        "Choices: none percentile beta isotonic temperature. Default: all.")
+    p.add_argument("--ma-windows", nargs="+", type=int, default=None,
+                   help="Moving-average windows to sweep (default: 1 3 5 7 10)")
+    p.add_argument("--thresholds", nargs="+", type=float, default=None,
+                   help="Thresholds to sweep (default: 0.3 0.4 0.5 0.6 0.7)")
+    p.add_argument("--percentiles", nargs="+", type=int, default=None,
+                   help="Percentiles for percentile calibration (default: 5 10 15 20)")
+    p.add_argument("--suppression-duration", type=int, default=None,
+                   help="Suppression window (in samples) for the suppressed FPR/hour metric")
     p.set_defaults(func=run_analyze_cmd)
 
 
 def run_analyze_cmd(args: argparse.Namespace) -> None:
     import os
     from seizure_pred.core.runs import find_splits
+
+    # Tolerate minimal Namespaces constructed programmatically (e.g. in tests).
+    ma_windows = getattr(args, "ma_windows", None)
+    thresholds = getattr(args, "thresholds", None)
+    thresholds_list = [float(t) for t in thresholds] if thresholds else None
+    calibration_methods = getattr(args, "calibration_methods", None)
+    percentiles = getattr(args, "percentiles", None)
+    suppression_duration = getattr(args, "suppression_duration", None)
+    sampling_period = getattr(args, "sampling_period", 5.0)
+    no_plots = getattr(args, "no_plots", False)
 
     split_dirs = find_splits(args.run_dir)
     if split_dirs:
@@ -31,22 +54,39 @@ def run_analyze_cmd(args: argparse.Namespace) -> None:
                 out_dir=split_out_dir,
                 threshold=args.threshold,
                 prefer_postprocessed=args.prefer_postprocessed,
-                make_plots=not args.no_plots,
+                make_plots=not no_plots,
             )
-        
-        # Run clinical multi-split aggregated sweeps and Pareto frontier analysis
+
+        # Per-split MA x threshold sweep + Pareto (works on predictions.jsonl)
         from seizure_pred.analysis.summary import analyze_multi_split_summary
         analyze_multi_split_summary(
             run_dir=args.run_dir,
             out_dir=args.out_dir,
-            sampling_period=getattr(args, "sampling_period", 5.0),
-            make_plots=not args.no_plots,
+            ma_windows=ma_windows,
+            thresholds=thresholds_list,
+            sampling_period=sampling_period,
+            make_plots=not no_plots,
         )
+
+        # Calibration x MA x threshold sweep (requires raw_predictions.pkl from nested CV)
+        if os.path.exists(os.path.join(args.run_dir, "raw_predictions.pkl")):
+            from seizure_pred.analysis.calibration_sweep import analyze_nested_calibration
+            analyze_nested_calibration(
+                run_dir=args.run_dir,
+                out_dir=args.out_dir,
+                calibration_methods=calibration_methods,
+                ma_windows=ma_windows,
+                thresholds=thresholds_list,
+                percentiles=percentiles,
+                sampling_period=sampling_period,
+                suppression_duration=suppression_duration,
+                make_plots=not no_plots,
+            )
     else:
         analyze_run(
             run_dir=args.run_dir,
             out_dir=args.out_dir,
             threshold=args.threshold,
             prefer_postprocessed=args.prefer_postprocessed,
-            make_plots=not args.no_plots,
+            make_plots=not no_plots,
         )
