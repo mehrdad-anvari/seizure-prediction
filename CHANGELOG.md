@@ -6,13 +6,48 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [Unreleased]
 ### Added
-- (Reserved)
+- Validation AUC and average precision are now computed and logged every epoch
+  (`val_auc`, `val_ap` in `history.jsonl` and `metrics.json`); previously AUC
+  was silently absent (always 0.5) which broke AUC-weighted ensembling and
+  nested-CV best-fold selection.
+- Configurable best-checkpoint selection via `monitor` / `monitor_mode`
+  (`val_loss`/`min` default; `auc`/`max` matches the legacy best-by-val-AUC).
+- `PostprocessConfig` field on `TrainConfig` so inference post-processing is
+  fully configurable and validated (used by `predict --apply-postprocess`).
+- Probability calibration module
+  (`seizure_pred.inference.calibration`): `percentile`, `beta`, `isotonic`,
+  `temperature` + `calibrate_ensemble` (AUC-weighted, fit-on-validation).
+- Calibration-aware analysis sweep
+  (`seizure_pred.analysis.calibration_sweep.analyze_nested_calibration`)
+  consuming nested-CV `raw_predictions.pkl`, with a
+  calibration × MA × threshold variant grid, best-variant CSVs, and a Pareto
+  frontier. Wired into `seizure-pred analyze` with new flags
+  (`--calibration-methods`, `--ma-windows`, `--thresholds`, `--percentiles`,
+  `--suppression-duration`).
+- Suppression-based FPR/hour metric (`fpr_per_hour_suppressed`) in
+  `clinical_metrics`.
+- `nearest` interictal strategy for leave-one-preictal-out CV.
+- Model benchmarking utility (`seizure_pred.experiments.benchmark`) and
+  `seizure-pred benchmark` CLI (params, FLOPs, CPU/GPU latency, GPU memory).
+- Optional XAI module (`seizure_pred.inference.xai`) using Captum
+  IntegratedGradients.
+- Comprehensive docs (models, transforms, CV, analysis, benchmark, XAI,
+  predictions schema, trainer contract, plugin guide) and a rewritten README.
 
 ### Changed
-- (Reserved)
+- `validate_dict` now resolves `from __future__ import annotations` string
+  annotations via `get_type_hints`, so nested dataclass and type validation
+  actually works (previously silently skipped).
+- The leave-one-preictal splitter is robust to datasets where positive and
+  negative samples share a `group_id` (it now intersects with `pos_mask`).
+- Rewrote `experiments.grid.run_grid` to use the real Trainer/registry/
+  build_loader APIs (it was previously non-functional).
 
 ### Fixed
-- (Reserved)
+- `experiments/grid.py` constructor/registry/loader/fit call mismatches.
+- Example configs used the wrong field name `n_fold` (now `n_folds`).
+- Test `conftest` no longer hard-imports `mne`; tests skip gracefully when the
+  optional `.[eeg]` extra is missing.
 
 ## [0.2.0] - 2025-12-20
 ### Added

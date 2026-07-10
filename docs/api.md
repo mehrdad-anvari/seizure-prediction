@@ -9,8 +9,10 @@ configuration, data splits, datasets, dataloaders, model zoo, losses, optimizers
 - Registry entry points: `seizure_pred.training.registries`
 - Training pipeline: `seizure_pred.training.engine.pipeline`
 - Trainers: `seizure_pred.training.engine.trainer.Trainer`, `seizure_pred.training.engine.trainer_mil.TrainerMIL`
-- Inference: `seizure_pred.inference.predictor.predict`, `seizure_pred.inference.postprocess`
-- Analysis: `seizure_pred.analysis.runner.analyze_run`
+- Inference: `seizure_pred.inference.predictor.predict`, `seizure_pred.inference.postprocess`, `seizure_pred.inference.calibration`
+- Analysis: `seizure_pred.analysis.runner.analyze_run`, `seizure_pred.analysis.summary`, `seizure_pred.analysis.calibration_sweep`
+- Benchmark: `seizure_pred.experiments.benchmark`
+- XAI: `seizure_pred.inference.xai`
 
 ## Configuration
 
@@ -28,7 +30,15 @@ The primary config object is `TrainConfig`, with nested dataclasses for each sub
 - `val_every`: validation frequency in epochs
 - `save_dir`: base run directory
 - `run_name`: run name prefix
-- `data`, `model`, `loss`, `optim`, `sched`, `callbacks`, `cv`: nested configuration blocks
+- `monitor` / `monitor_mode`: metric used to keep the best checkpoint
+  (`"val_loss"`/`"min"` default; `"auc"`/`"max"` matches the legacy
+  best-by-validation-AUC). Also accepts `f1`/`acc`/`precision`/`recall`.
+- `data`, `model`, `loss`, `optim`, `sched`, `postprocess`, `callbacks`, `cv`: nested configuration blocks
+
+### `PostprocessConfig`
+
+- `name`: postprocessor registry key (`threshold`, `moving_average`, `hysteresis`, `compose`) or `null`
+- `kwargs`: postprocessor-specific options (applied by `predict --apply-postprocess`)
 
 ### `CvConfig`
 
@@ -103,7 +113,9 @@ The repo ships a small splitter module in `seizure_pred.data.splits`.
 ### `leave_one_preictal(dataset, method="balanced", shuffle_interictal=False, random_state=0)`
 
 - Alias for the outer CV workflow used by the legacy pipeline
-- Currently supports only `method="balanced"`
+- `method` ∈ {`balanced`, `balanced_shuffled`, `nearest`}: `balanced` partitions
+  interictal windows evenly; `balanced_shuffled` randomises them; `nearest`
+  picks temporally-nearest interictal windows to each held-out event
 
 ### `stratified_kfold(dataset, n_folds=5, shuffle=False, random_state=0)`
 
@@ -224,10 +236,18 @@ The exact constructor parameters are documented inline in each builder module. T
 
 ## Evaluators and postprocessing
 
-- `binary`: binary metrics with optional AUC
+- `binary`: binary metrics (acc/precision/recall/f1/**auc/ap** + confusion)
 - `mil_binary`: applies bag aggregation before binary metrics
-- `detection_events`: event-level detection metrics after postprocessing
-- `threshold`, `moving_average`, `hysteresis`, `compose`: inference postprocessors
+- Postprocessors: `threshold`, `moving_average`, `hysteresis`, `compose`
+- Calibration (`seizure_pred.inference.calibration`): `percentile`, `beta`,
+  `isotonic`, `temperature` + `calibrate_ensemble` (analysis-time, fit-on-val)
+
+## Benchmarking & XAI
+
+- `seizure_pred.experiments.benchmark`: params, FLOPs (`thop`), CPU/GPU latency,
+  throughput, GPU memory, `torchinfo` summary (see [Benchmarking](benchmark.md)).
+- `seizure_pred.inference.xai`: Captum IntegratedGradients attributions
+  (optional `captum`; see [XAI](xai.md)).
 
 ## Examples
 
