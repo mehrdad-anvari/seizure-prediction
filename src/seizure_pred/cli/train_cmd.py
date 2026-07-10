@@ -35,7 +35,7 @@ def add_train_cmd(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("train", help="Train a model (prediction/detection/MIL)")
     p.add_argument("--config", required=True, help="YAML/JSON config file")
     p.add_argument("--override", default=None, help="Optional YAML/JSON override file merged on top")
-    p.add_argument("--n-folds", type=int, default=5, help="Number of folds for leave-one-out style split")
+    p.add_argument("--n-folds", type=int, default=None, help="Override data.n_folds for the split sweep")
     p.add_argument("--dataloader", default=None, help="Override dataloader strategy name")
     p.add_argument("--mil", action="store_true", help="Use MIL trainer")
     p.add_argument("--strict", action="store_true", help="Fail fast if requested components are missing")
@@ -71,7 +71,11 @@ def run_train(args: argparse.Namespace) -> None:
     training.register_all()
     import seizure_pred.models as models
     models.register_all()
-    
+
+    # CLI overrides
+    if getattr(args, "n_folds", None) is not None:
+        cfg.data.n_folds = int(args.n_folds)
+
     # Optional overrides
     if args.dataloader is not None:
         cfg.data.kwargs = dict(cfg.data.kwargs or {})
@@ -246,7 +250,7 @@ def train_from_config(
     ns = argparse.Namespace(
         config=str(config_path),
         override=None if override_path is None else str(override_path),
-        n_folds=5,
+        n_folds=None,
         dataloader=dataloader,
         mil=bool(mil),
         strict=bool(strict),

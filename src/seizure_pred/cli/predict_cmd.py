@@ -40,7 +40,7 @@ def add_predict_cmd(sub: argparse._SubParsersAction) -> None:
     p.add_argument("--override", default=None, help="Optional YAML/JSON override file merged on top")
     p.add_argument("--checkpoint", required=True, help="Path to checkpoint (.pt)")
     p.add_argument("--split-index", type=int, default=None, help="Which split fold to run (default: all splits if directory, else 0)")
-    p.add_argument("--n-folds", type=int, default=5, help="Number of folds for splits")
+    p.add_argument("--n-folds", type=int, default=None, help="Override data.n_folds for the split sweep")
     p.add_argument("--dataloader", default=None, help="Override dataloader strategy name")
     p.add_argument("--mil", action="store_true", help="Treat batches as MIL bags")
     p.add_argument("--strict", action="store_true", help="Fail fast if requested components are missing")
@@ -75,7 +75,10 @@ def run_predict(args: argparse.Namespace) -> None:
     training.register_all()
     import seizure_pred.models as models
     models.register_all()
-    
+
+    if getattr(args, "n_folds", None) is not None:
+        cfg.data.n_folds = int(args.n_folds)
+
     seed_everything(getattr(cfg, "determinism", None), seed=cfg.seed)
 
     device = torch.device(cfg.device if torch.cuda.is_available() and cfg.device.startswith("cuda") else "cpu")
