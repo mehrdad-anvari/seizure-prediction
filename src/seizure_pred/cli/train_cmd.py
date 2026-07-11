@@ -265,7 +265,7 @@ def train_from_config(
     run_train(ns)
 
 
-def ensemble_outer_split(outer_split_dir: str, inner_n_fold: int, threshold: float = 0.5) -> None:
+def ensemble_outer_split(outer_split_dir: str, inner_n_fold: int, threshold: float = 0.5) -> dict[str, Any]:
     import json
     import os
     import numpy as np
@@ -321,7 +321,7 @@ def ensemble_outer_split(outer_split_dir: str, inner_n_fold: int, threshold: flo
         inner_probs.append(probs)
 
     if not y_true or not inner_probs:
-        return
+        return {}
 
     inner_probs = np.array(inner_probs)  # shape (inner_n_fold, num_samples)
     val_aucs = np.array(val_aucs)
@@ -355,6 +355,7 @@ def ensemble_outer_split(outer_split_dir: str, inner_n_fold: int, threshold: flo
     targets_tensor = torch.tensor(y_true)
     metrics = binary_classification_metrics(logits_ensemble, targets_tensor, threshold=threshold)
     out_writer.write_metrics(metrics)
+    return metrics
 
 
 def run_nested_cv(cfg: TrainConfig, dataset: Any, stamp: str, args: argparse.Namespace) -> None:
@@ -387,7 +388,8 @@ def run_nested_cv(cfg: TrainConfig, dataset: Any, stamp: str, args: argparse.Nam
     
     try:
         for outer_idx, (train_val_set, test_set) in enumerate(outer_splits):
-            logger.info("\n" + "=" * 80)
+            logger = setup_logging(run_root_dir)
+            logger.info("=" * 80)
             logger.info("OUTER FOLD %d/%d", outer_idx + 1, len(outer_splits))
             logger.info("=" * 80)
             
@@ -418,7 +420,8 @@ def run_nested_cv(cfg: TrainConfig, dataset: Any, stamp: str, args: argparse.Nam
             ))
             
             for inner_idx, (train_set, val_set) in enumerate(inner_splits):
-                logger.info("\n--- Inner Fold %d/%d ---", inner_idx + 1, len(inner_splits))
+                logger = setup_logging(run_root_dir)
+                logger.info("--- Inner Fold %d/%d ---", inner_idx + 1, len(inner_splits))
                 logger.info("Train: %d samples", len(train_set))
                 logger.info("Val: %d samples", len(val_set))
                 logger.info("Test: %d samples", len(test_set))
@@ -565,7 +568,9 @@ def run_nested_cv(cfg: TrainConfig, dataset: Any, stamp: str, args: argparse.Nam
             
             # Perform ensembled prediction for the outer fold
             outer_split_dir = os.path.join(run_root_dir, f"split_{outer_idx}")
-            ensemble_outer_split(outer_split_dir, len(inner_splits), threshold=args.threshold if hasattr(args, "threshold") else 0.5)
+            metrics = ensemble_outer_split(outer_split_dir, len(inner_splits), threshold=args.threshold if hasattr(args, "threshold") else 0.5)
+            setup_logging(run_root_dir)
+            logger.info("Ensembled metrics for Outer Fold %d: %s", outer_idx + 1, json.dumps(metrics, indent=2))
             logger.info("Outer Fold %d Complete. Ensembled test predictions written to %s", outer_idx + 1, outer_split_dir)
             
         # Write legacy raw_predictions.pkl
@@ -573,7 +578,7 @@ def run_nested_cv(cfg: TrainConfig, dataset: Any, stamp: str, args: argparse.Nam
         with open(results_path, 'wb') as f:
             pickle.dump(cv_results, f)
             
-        logger.info("\n" + "=" * 80)
+        logger.info("=" * 80)
         logger.info("✨ NESTED TRAINING COMPLETE!")
         logger.info("=" * 80)
         logger.info("📁 Results saved to: %s", run_root_dir)
