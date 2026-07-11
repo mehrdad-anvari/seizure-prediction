@@ -1,7 +1,7 @@
 task: prediction
 seed: 42
 device: cuda
-epochs: 50
+epochs: 20
 amp: true
 grad_clip_norm: 1.0
 log_every: 10
