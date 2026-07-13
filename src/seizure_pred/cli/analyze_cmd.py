@@ -18,9 +18,9 @@ def add_analyze_cmd(sub: argparse._SubParsersAction) -> None:
     p.add_argument("--calibration-methods", nargs="+", default=None,
                    help="Calibration methods to sweep (nested CV runs). "
                         "Choices: none percentile beta isotonic temperature. Default: all.")
-    p.add_argument("--ma-windows", nargs="+", type=int, default=None,
+    p.add_argument("--ma-windows", nargs="+", type=int, default=[1, 3, 5, 7, 10],
                    help="Moving-average windows to sweep (default: 1 3 5 7 10)")
-    p.add_argument("--thresholds", nargs="+", type=float, default=None,
+    p.add_argument("--thresholds", nargs="+", type=float, default=[0.3, 0.4, 0.5, 0.6, 0.7],
                    help="Thresholds to sweep (default: 0.3 0.4 0.5 0.6 0.7)")
     p.add_argument("--percentiles", nargs="+", type=int, default=None,
                    help="Percentiles for percentile calibration (default: 5 10 15 20)")
