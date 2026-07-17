@@ -36,7 +36,7 @@ against all of its inner-fold models. For every held-out preictal event it
 plots probability over time, aligning samples by `(event_id, global_epoch_id)`
 and ordering them by `epoch_index_within_event`. A split containing one event writes:
 
-- `<run_dir>/split_X/analysis/preictal_probability_comparison.png`
+- `<run_dir>/split_X/analysis/preictal_prob_split_X.png`
 
 If a split contains multiple preictal events, the event ID is appended to each
 filename so that probabilities from separate events are never connected.
