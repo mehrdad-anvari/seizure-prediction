@@ -438,8 +438,8 @@ def run_nested_cv(cfg: TrainConfig, dataset: Any, stamp: str, args: argparse.Nam
                 
                 # Build loaders
                 train_loader = build_loader(dl_name, train_set, cfg, shuffle=True)
-                val_loader = build_loader(dl_name, val_set, cfg, shuffle=False)
-                test_loader = build_loader(dl_name, test_set, cfg, shuffle=False)
+                val_loader = build_loader("torch", val_set, cfg, shuffle=False)
+                test_loader = build_loader("torch", test_set, cfg, shuffle=False)
                 
                 # Build components
                 model = MODELS.create(cfg.model.name, cfg.model)
