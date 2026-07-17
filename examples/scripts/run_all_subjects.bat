@@ -64,10 +64,12 @@ echo.
 echo ================================================================
 echo Running analysis for all runs under runs/
 echo ================================================================
-for /d %%D in (runs\*) do (
-  if exist "%%D\split_0" (
-    echo Analyzing %%D\split_0
-    python examples\scripts\analyze_results.py --run-dir "%%D\split_0"
+for /d %%R in (runs\*) do (
+  for /d %%D in ("%%R\*") do (
+    if exist "%%D\split_0" (
+      echo Analyzing %%D
+      seizure-pred analyze --run-dir "%%D"
+    )
   )
 )
 

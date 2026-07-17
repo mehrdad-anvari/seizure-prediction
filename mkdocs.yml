@@ -1,19 +1,49 @@
 site_name: seizure-pred
+site_description: Modular seizure prediction/detection library for CHB-MIT EEG
+repo_url: ""
 theme:
   name: material
+  features:
+    - navigation.sections
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - tables
+  - toc:
+      permalink: true
+
 nav:
   - Home: index.md
   - Install: install.md
   - CLI: cli.md
-  - API: api.md
-  - Extending: extending.md
-  - Plugin Guide: plugin_guide.md
+  - Configuration & API: api.md
+  - Models: models.md
+  - Transforms: transforms.md
+  - Cross-validation & Splits: cv.md
+  - Analysis & Calibration: analysis.md
+  - Benchmarking: benchmark.md
+  - Explainability (XAI): xai.md
+  - Experiments (grid): experiments.md
   - Data Contracts: data_contracts.md
   - Config Validation: config_validation.md
   - Reproducibility: determinism.md
-  - Experiments: experiments.md
   - Run artifacts: run_artifacts.md
   - Predictions schema: predictions_schema.md
   - Trainer Contract: trainer_contract.md
+  - Extending: extending.md
+  - Plugin Guide: plugin_guide.md
   - Migration: migration.md
   - Analysis Migration: analysis_migration.md

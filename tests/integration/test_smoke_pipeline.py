@@ -230,3 +230,102 @@ def test_smoke_multi_split_predict_and_analyze():
         assert os.path.exists(os.path.join(stamp_dir, "split_1", "analysis", "report.json"))
 
 
+def test_smoke_nested_cv_predict_and_analyze():
+    try:
+        torch.set_num_threads(1)
+        torch.set_num_interop_threads(1)
+    except Exception:
+        pass
+
+    import argparse
+    import yaml
+    from seizure_pred.cli.train_cmd import train_from_config
+    from seizure_pred.cli.predict_cmd import run_predict
+    from seizure_pred.cli.analyze_cmd import run_analyze_cmd
+
+    with tempfile.TemporaryDirectory() as td:
+        config_data = {
+            "device": "cpu",
+            "amp": False,
+            "epochs": 1,
+            "task": "prediction",
+            "save_dir": td,
+            "run_name": "test_nested_run",
+            "data": {
+                "name": "synthetic",
+                "batch_size": 4,
+                "num_workers": 0,
+                "pin_memory": False,
+                "persistent_workers": False,
+                "split_method": "stratified",
+                "n_folds": 2,
+                "kwargs": {"n": 16, "c": 8, "t": 32, "pos_frac": 0.25, "seed": 1}
+            },
+            "model": {
+                "name": "simple_cnn",
+                "num_classes": 1,
+                "in_channels": 8,
+                "kwargs": {"hidden": 4}
+            },
+            "cv": {
+                "outer_method": "KFold",
+                "outer_n_fold": 2,
+                "outer_shuffle": True,
+                "outer_mode": "random_split",
+                "inner_method": "KFold",
+                "inner_n_fold": 2,
+                "inner_shuffle": True,
+                "inner_mode": "random_split",
+                "random_state": 42
+            }
+        }
+        
+        cfg_file = os.path.join(td, "config.yaml")
+        with open(cfg_file, "w") as f:
+            yaml.dump(config_data, f)
+
+        # 1. Train all nested splits
+        train_from_config(cfg_file, strict=True)
+
+        run_name_dir = os.path.join(td, "test_nested_run")
+        timestamps = os.listdir(run_name_dir)
+        stamp_dir = os.path.join(run_name_dir, timestamps[0])
+
+        # Assert nested CV output structure
+        assert os.path.exists(os.path.join(stamp_dir, "raw_predictions.pkl"))
+        assert os.path.exists(os.path.join(stamp_dir, "split_0", "inner_split_0", "checkpoints", "best.pt"))
+        assert os.path.exists(os.path.join(stamp_dir, "split_0", "inner_split_1", "checkpoints", "best.pt"))
+        assert os.path.exists(os.path.join(stamp_dir, "split_0", "predictions.jsonl"))
+        assert os.path.exists(os.path.join(stamp_dir, "split_1", "predictions.jsonl"))
+
+        # 2. Predict using ensembling on stamp_dir
+        predict_args = argparse.Namespace(
+            config=cfg_file,
+            override=None,
+            checkpoint=stamp_dir,
+            split_index=None,
+            n_folds=2,
+            dataloader=None,
+            mil=False,
+            strict=True,
+            threshold=0.5,
+            out_dir=stamp_dir,
+            apply_postprocess=False,
+        )
+        run_predict(predict_args)
+
+        # 3. Analyze ensembled outer splits
+        analyze_args = argparse.Namespace(
+            run_dir=stamp_dir,
+            out_dir=None,
+            threshold=0.5,
+            prefer_postprocessed=False,
+            no_plots=True,
+        )
+        run_analyze_cmd(analyze_args)
+
+        # Assert analysis files exist
+        assert os.path.exists(os.path.join(stamp_dir, "split_0", "analysis", "report.json"))
+        assert os.path.exists(os.path.join(stamp_dir, "split_1", "analysis", "report.json"))
+
+

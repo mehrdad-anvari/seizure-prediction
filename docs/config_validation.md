@@ -12,4 +12,4 @@ To catch configuration errors early, the library's command-line interface (CLI) 
 
 If a configuration file fails validation, the CLI prints a readable list of specific errors with full dot-notation paths showing exactly where the errors occurred (e.g. `train.data.batch_size: expected int, got str`).
 
-Validation is implemented in: [validate.py](file:///e:/Projects/seizure/library/seizure-prediction/src/seizure_pred/core/validate.py).
+Validation is implemented in: [validate.py](src/seizure_pred/core/validate.py).

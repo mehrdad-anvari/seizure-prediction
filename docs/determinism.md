@@ -4,7 +4,7 @@ This package provides utilities to help ensure reproducible experiments and dete
 
 ## Seeding Utilities
 
-Use [seed.py](file:///e:/Projects/seizure/library/seizure-prediction/src/seizure_pred/core/seed.py) to seed Python's built-in `random`, `numpy`, and PyTorch:
+Use [seed.py](src/seizure_pred/core/seed.py) to seed Python's built-in `random`, `numpy`, and PyTorch:
 
 ```python
 from seizure_pred.core.seed import seed_everything

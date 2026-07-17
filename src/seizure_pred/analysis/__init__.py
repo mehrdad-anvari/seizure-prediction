@@ -8,7 +8,8 @@ This package provides:
 
 from .runner import analyze_run  # noqa: F401
 from .runs import load_predictions  # noqa: F401
-from .metrics import binary_report, roc_curve, pr_curve, auc_trapz  # noqa: F401
+from .metrics import binary_report, roc_curve, pr_curve, auc_trapz, moving_average_segmented, clinical_metrics  # noqa: F401
+from .summary import analyze_multi_split_summary  # noqa: F401
 from .plots import plot_history, plot_confusion, plot_roc, plot_pr  # noqa: F401
 
 __all__ = [
@@ -18,6 +19,9 @@ __all__ = [
     "roc_curve",
     "pr_curve",
     "auc_trapz",
+    "moving_average_segmented",
+    "clinical_metrics",
+    "analyze_multi_split_summary",
     "plot_history",
     "plot_confusion",
     "plot_roc",

@@ -27,4 +27,4 @@ Analysis tools typically write outputs under an `analysis/` sub-directory within
 
 ## Implementation Details
 
-All run artifacts are managed via the writer class: [ArtifactWriter](file:///e:/Projects/seizure/library/seizure-prediction/src/seizure_pred/training/engine/artifacts.py).
+All run artifacts are managed via the writer class: [ArtifactWriter](src/seizure_pred/training/engine/artifacts.py).

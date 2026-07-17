@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from typing import Any, Dict, Optional
+import math
 
 import os
 import logging
@@ -13,6 +14,52 @@ from seizure_pred.core.config import TrainConfig
 from seizure_pred.training.engine.callbacks import CallbackList
 from seizure_pred.training.engine.metrics import binary_classification_metrics
 from seizure_pred.training.engine.artifacts import ArtifactWriter
+
+
+def _monitor_value(cfg: TrainConfig, val_loss: float, val_metrics: Dict[str, Any]) -> Optional[float]:
+    """Resolve the monitored metric value for best-checkpoint selection.
+
+    Returns None when the configured metric is unavailable/NaN for this epoch.
+    """
+    monitor = (getattr(cfg, "monitor", "val_loss") or "val_loss").strip()
+    if monitor == "val_loss":
+        return float(val_loss)
+    v = val_metrics.get(monitor)
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    f = float(v)
+    if math.isnan(f):
+        return None
+    return f
+
+
+def _monitor_mode(cfg: TrainConfig) -> str:
+    monitor = (getattr(cfg, "monitor", "val_loss") or "val_loss").strip()
+    if monitor == "val_loss":
+        return "min"
+    mode = (getattr(cfg, "monitor_mode", "max") or "max").strip().lower()
+    return "max" if mode not in {"min", "max"} else mode
+
+
+def _is_better(new: float, best: float, mode: str) -> bool:
+    return new < best if mode == "min" else new > best
+
+
+# Metrics that can be used for best-checkpoint selection. Anything else is
+# rejected at trainer init so a typo doesn't silently disable checkpointing.
+_MONITOR_METRICS = {"val_loss", "auc", "ap", "f1", "acc", "precision", "recall", "loss"}
+
+
+def _validate_monitor(cfg: TrainConfig) -> None:
+    monitor = (getattr(cfg, "monitor", "val_loss") or "val_loss").strip()
+    if monitor not in _MONITOR_METRICS:
+        raise ValueError(
+            f"Unknown monitor metric '{monitor}'. "
+            f"Expected one of {sorted(_MONITOR_METRICS)}."
+        )
+    mode = (getattr(cfg, "monitor_mode", "min") or "min").strip().lower()
+    if mode not in {"min", "max"}:
+        raise ValueError(f"monitor_mode must be 'min' or 'max', got '{mode}'.")
 
 
 class Trainer:
@@ -60,6 +107,8 @@ class Trainer:
         self.writer = artifact_writer or ArtifactWriter(run_dir)
         self.callbacks = CallbackList(callbacks or [])
 
+        _validate_monitor(cfg)
+
         os.makedirs(self.run_dir, exist_ok=True)
         self.model.to(self.device)
 
@@ -84,6 +133,12 @@ class Trainer:
         """
         state: Dict[str, Any] = {"trainer": self, "epoch": 0, "best_val_loss": float("inf")}
         self.callbacks.on_train_start(state)
+
+        mode = _monitor_mode(self.cfg)
+        best_value = float("inf") if mode == "min" else float("-inf")
+        state["monitor"] = getattr(self.cfg, "monitor", "val_loss") or "val_loss"
+        state["monitor_mode"] = mode
+        state["best_monitor_value"] = best_value
 
         logger = logging.getLogger("seizure_pred")
         best_ckpt_path = ""
@@ -141,9 +196,13 @@ class Trainer:
                     except Exception:
                         pass
 
-            # best checkpoint
-            if val_loss < float(state["best_val_loss"]):
+            # best checkpoint (by configured monitor metric)
+            mon_val = _monitor_value(self.cfg, val_loss, state["val_metrics"])
+            improved = mon_val is not None and _is_better(mon_val, best_value, mode)
+            if improved:
+                best_value = mon_val  # type: ignore[assignment]
                 state["best_val_loss"] = val_loss
+                state["best_monitor_value"] = best_value
                 try:
                     best_ckpt_path = self.writer.save_best_checkpoint(
                         model=self.model,
