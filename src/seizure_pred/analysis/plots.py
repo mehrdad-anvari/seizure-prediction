@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
+from typing import Mapping, Optional
 
 import numpy as np
 
@@ -94,3 +94,51 @@ def plot_pr(rec: np.ndarray, prec: np.ndarray, *, save_path: str, auc: Optional[
     plt.tight_layout()
     plt.savefig(save_path)
     plt.close()
+
+
+def plot_preictal_prob(
+    x: np.ndarray,
+    ensemble_prob: np.ndarray,
+    inner_prob: Mapping[str, np.ndarray],
+    *,
+    save_path: str,
+    title: Optional[str] = None,
+) -> None:
+    """Compare an outer-fold ensemble with its inner-fold probabilities."""
+    plt = _mpl()
+    x = np.asarray(x, dtype=np.float64)
+    ensemble_prob = np.asarray(ensemble_prob, dtype=np.float64)
+
+    if x.ndim != 1 or ensemble_prob.ndim != 1:
+        raise ValueError("x and ensemble_prob must be one-dimensional")
+    if x.size != ensemble_prob.size:
+        raise ValueError("x and ensemble_prob must have the same length")
+
+    fig, ax = plt.subplots(figsize=(12, 5))
+    for name, values in inner_prob.items():
+        prob = np.asarray(values, dtype=np.float64)
+        if prob.ndim != 1 or prob.size != x.size:
+            plt.close(fig)
+            raise ValueError(f"{name} probabilities must have the same length as x")
+        ax.plot(x, prob, linewidth=1.0, alpha=0.65, label=name)
+
+    ax.plot(
+        x,
+        ensemble_prob,
+        color="black",
+        linewidth=2.5,
+        label="outer ensemble",
+        zorder=10,
+    )
+    ax.set_ylim(0.0, 1.0)
+    ax.set_xlabel("Time within preictal event (minutes)")
+    ax.set_ylabel("Predicted preictal probability")
+    ax.set_title(title or "Preictal probability comparison")
+    ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), borderaxespad=0.0)
+    fig.tight_layout()
+    fig.savefig(save_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
+# Backward-compatible name for callers using the original longer helper name.
+plot_preictal_probability_comparison = plot_preictal_prob
