@@ -43,6 +43,9 @@ def run_analyze_cmd(args: argparse.Namespace) -> None:
     sampling_period = getattr(args, "sampling_period", 5.0)
     no_plots = getattr(args, "no_plots", False)
 
+    if not no_plots:
+        from seizure_pred.analysis.nested_predictions import analyze_preictal_prob
+
     split_dirs = find_splits(args.run_dir)
     if split_dirs:
         for split_index, split_dir in split_dirs:
@@ -56,6 +59,23 @@ def run_analyze_cmd(args: argparse.Namespace) -> None:
                 prefer_postprocessed=args.prefer_postprocessed,
                 make_plots=not no_plots,
             )
+            if not no_plots:
+                try:
+                    comparison = analyze_preictal_prob(
+                        split_dir,
+                        out_dir=split_out_dir,
+                        sampling_period=sampling_period,
+                    )
+                    if comparison["status"] == "ok":
+                        print(
+                            "[analysis] Generated nested preictal comparison "
+                            f"for split_{split_index}"
+                        )
+                except Exception as e:
+                    print(
+                        "[analysis] Failed nested preictal comparison for "
+                        f"split_{split_index}: {e}"
+                    )
 
         # Per-split MA x threshold sweep + Pareto (works on predictions.jsonl)
         from seizure_pred.analysis.summary import analyze_multi_split_summary
@@ -90,3 +110,17 @@ def run_analyze_cmd(args: argparse.Namespace) -> None:
             prefer_postprocessed=args.prefer_postprocessed,
             make_plots=not no_plots,
         )
+        if not no_plots:
+            try:
+                comparison = analyze_preictal_prob(
+                    args.run_dir,
+                    out_dir=args.out_dir,
+                    sampling_period=sampling_period,
+                )
+                if comparison["status"] == "ok":
+                    print(
+                        "[analysis] Generated nested preictal comparison for "
+                        f"{os.path.basename(os.path.normpath(args.run_dir))}"
+                    )
+            except Exception as e:
+                print(f"[analysis] Failed nested preictal comparison: {e}")
