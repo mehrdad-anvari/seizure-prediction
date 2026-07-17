@@ -14,6 +14,15 @@ writes, under `<split>/analysis/`:
 
 Metrics are computed without sklearn (rank-based AUC, trapezoid PR).
 
+## Nested-CV preictal probability comparison
+
+When a split contains `inner_split_*/predictions.jsonl`, the `analyze` CLI
+also writes `preictal_probability_comparison.png` under that split's
+`analysis/` directory. The plot shows each inner-fold probability together
+with the outer AUC-weighted ensemble for every preictal event. Samples are
+matched by `(event_id, global_epoch_id)` and ordered by
+`epoch_index_within_event`. Multiple events are written to separate files.
+
 ## Aggregated MA × threshold sweep (`analyze_multi_split_summary`)
 
 Runs across all `split_*` folders. For each `ma_window × threshold` variant it
