@@ -429,6 +429,8 @@ def extract_segments_with_labels_bids(
     keep_labels: Set[str] = {"seizure", "preictal", "interictal", "post_buffer", "pre_buffer"},
     preictal_oversample_factor: float = 1.0,
     seizure_oversample_factor: float = 1.0,
+    start_global_id: int = None,
+    initial_ann_counter: int = None
 ):
     """
     Segment an annotated MNE Raw object into fixed-length EEG epochs, produce
@@ -475,10 +477,10 @@ def extract_segments_with_labels_bids(
     y_list = []
     meta_list = []
 
-    ann_counter = {lab: 0 for lab in keep_labels}
+    ann_counter = {lab: 0 for lab in keep_labels} if initial_ann_counter is None else initial_ann_counter
     event_stats = []
     sfreq = raw.info["sfreq"]
-    global_id = 0 
+    global_id = 0 if start_global_id is None else start_global_id
 
     for desc, onset, duration in zip(
         raw.annotations.description,
@@ -598,7 +600,7 @@ def extract_segments_with_labels_bids(
     y = np.array(y_list)
     meta_df = pd.DataFrame(meta_list)
 
-    return X, y, meta_df, event_stats
+    return X, y, meta_df, event_stats, global_id, ann_counter
 
 
 
