@@ -17,13 +17,15 @@ dependencies = [
   "torch",
   "tqdm",
   "einops",
-  "scipy"
+  "scipy",
+  "torch-geometric",
+  "torchinfo"
 ]
 
 [project.optional-dependencies]
 dev = ["pytest"]
 train = ["pyyaml", "scikit-learn"]
-viz = ["matplotlib"]
+viz = ["matplotlib", "seaborn"]
 eeg = ["mne", "mne-connectivity"]
 
 [project.scripts]
