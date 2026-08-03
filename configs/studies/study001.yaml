@@ -1,0 +1,57 @@
+task: prediction
+seed: 42
+device: cuda
+epochs: 50
+amp: true
+grad_clip_norm: 1.0
+log_every: 10
+save_dir: runs
+run_name: study_001
+
+data:
+  name: chbmit_npz
+  dataset_dir: data/BIDS_CHB-MIT
+  subject_id: "01"
+  task: prediction
+  batch_size: 32
+  num_workers: 4
+  use_uint16: false
+  dataloader_type: "undersample"
+  suffix: _fd_5s
+
+# Select best epoch by validation AUC for each inner fold.
+monitor: auc
+monitor_mode: max
+
+# Nested CV configuration block
+cv:
+  outer_method: "LOO"             # Outer CV method: LOO (Leave-One-Out) or KFold
+  outer_shuffle: false
+  outer_n_fold: 8                 # Number of outer folds (ignored for LOO)
+  outer_mode: "split"             # Outer custom KFold splitting mode
+  outer_M: 10                     # Outer custom KFold stratum size
+  inner_method: "KFold"           # Inner CV method: LOO or KFold
+  inner_n_fold: 5                 # Number of inner folds
+  inner_shuffle: false
+  inner_mode: "per_event_strata"  # Inner custom KFold splitting mode
+  inner_M: 10                     # Inner custom KFold stratum size
+  random_state: 42                # Splitting random seed
+
+model:
+  name: eegwavenet
+  num_classes: 1
+  kwargs: {}
+
+loss:
+  name: bce_logits
+  kwargs: {}
+
+optim:
+  name: adamw
+  lr: 0.0001
+  weight_decay: 0.01
+  kwargs: {}
+
+sched:
+  name: null
+  kwargs: {}
