@@ -58,7 +58,9 @@ seizure-pred analyze --run-dir runs/<run_name>/<stamp>
 For each `split_*` folder it writes `analysis/` reports + ROC/PR/confusion/
 history plots. It then runs an aggregated **MA × threshold** sweep with a
 Pareto frontier. If `raw_predictions.pkl` exists (nested CV), it additionally
-runs the **calibration × MA × threshold** sweep.
+runs the **calibration × MA × threshold** sweep. Nested-CV splits also receive
+a `preictal_prob_split_X.png` plot comparing each inner model with the outer
+ensemble; `--no-plots` disables this artifact as well.
 
 Flags: `--out-dir`, `--threshold`, `--prefer-postprocessed`, `--no-plots`,
 `--sampling-period`, `--calibration-methods`, `--ma-windows`, `--thresholds`,

@@ -10,7 +10,11 @@ from .runner import analyze_run  # noqa: F401
 from .runs import load_predictions  # noqa: F401
 from .metrics import binary_report, roc_curve, pr_curve, auc_trapz, moving_average_segmented, clinical_metrics  # noqa: F401
 from .summary import analyze_multi_split_summary  # noqa: F401
-from .plots import plot_history, plot_confusion, plot_roc, plot_pr  # noqa: F401
+from .nested_predictions import (  # noqa: F401
+    analyze_preictal_prob,
+    ananlyze_preictal_prob,
+)
+from .plots import plot_history, plot_confusion, plot_roc, plot_pr, plot_preictal_prob  # noqa: F401
 
 __all__ = [
     "analyze_run",
@@ -22,8 +26,11 @@ __all__ = [
     "moving_average_segmented",
     "clinical_metrics",
     "analyze_multi_split_summary",
+    "analyze_preictal_prob",
+    "ananlyze_preictal_prob",
     "plot_history",
     "plot_confusion",
     "plot_roc",
     "plot_pr",
+    "plot_preictal_prob",
 ]

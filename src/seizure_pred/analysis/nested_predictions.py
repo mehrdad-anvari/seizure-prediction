@@ -162,11 +162,12 @@ def analyze_preictal_prob(
             for name, predictions in inner.items()
         }
 
+        split_name = _safe_filename_component(split_path.name)
         if len(event_ids) == 1:
-            filename = "preictal_probability_comparison.png"
+            filename = f"preictal_prob_{split_name}.png"
         else:
             filename = (
-                "preictal_probability_comparison_"
+                f"preictal_prob_{split_name}_"
                 f"{_safe_filename_component(event_id)}.png"
             )
         save_path = output_path / filename

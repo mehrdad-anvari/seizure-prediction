@@ -31,6 +31,16 @@ This creates the following outputs under `<run_dir>/analysis/`:
   - `threshold_analysis_ma<W>.png`: Plots of AUC, Sensitivity, and FPR/hour vs threshold for each moving average window size.
   - `metrics_vs_window.png`: Line plot comparing metrics across different smoothing window sizes.
 
+For nested cross-validation runs, analysis also compares each outer ensemble
+against all of its inner-fold models. For every held-out preictal event it
+plots probability over time, aligning samples by `(event_id, global_epoch_id)`
+and ordering them by `epoch_index_within_event`. A split containing one event writes:
+
+- `<run_dir>/split_X/analysis/preictal_prob_split_X.png`
+
+If a split contains multiple preictal events, the event ID is appended to each
+filename so that probabilities from separate events are never connected.
+
 You can also specify a custom sampling period for the FPR/hour calculation (default is 5.0 seconds per sample window):
 ```bash
 seizure-pred analyze --run-dir runs/<run_name>/<timestamp> --sampling-period 10.0

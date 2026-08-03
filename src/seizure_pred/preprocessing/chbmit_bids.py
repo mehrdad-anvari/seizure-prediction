@@ -205,6 +205,9 @@ def process_chbmit_bids_dataset(
 
     sessions_pathes = glob.glob(os.path.join(dataset_dir, "*", "*"))
     print(f"Found {len(sessions_pathes)} sessions in dataset.")
+    previous_subj_id = None
+    ann_counter = None
+    global_id = 0
     for session_path in sorted(sessions_pathes):
         print(session_path)
         subj_dir = Path(session_path).parts[-2]
@@ -212,6 +215,10 @@ def process_chbmit_bids_dataset(
         if subj_nums is not None and (int(subj_id) not in subj_nums):
             print("skipping subject id:", subj_id)
             continue
+        if subj_id != previous_subj_id or previous_subj_id is None:
+            global_id = None
+            ann_counter = None
+
         edf_files = sorted(glob.glob(session_path + "/eeg/*.edf"))
         raws = []
         for raw_file_path in edf_files:
@@ -258,13 +265,16 @@ def process_chbmit_bids_dataset(
             raw_all.plot(scalings="auto", duration=30)
             plt.show()
 
-        X, y, meta_df, event_stats = extract_segments_with_labels_bids(
+        X, y, meta_df, event_stats, global_id, ann_counter = extract_segments_with_labels_bids(
             raw_all,
             segment_sec=5,
             preictal_oversample_factor=preictal_oversample_factor,
             seizure_oversample_factor=seizure_oversample_factor,
+            start_global_id=global_id,
+            initial_ann_counter=ann_counter
         )
 
+        previous_subj_id =  subj_id
         if show_statistics:
             # --- Print statistics ---
             print("\n=== Extraction statistics ===")
