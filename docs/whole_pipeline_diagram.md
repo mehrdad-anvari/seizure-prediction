@@ -61,13 +61,19 @@ flowchart TD
     F4[Standalone prediction<br/>restore one or many checkpoints]
     F5[predict / predict_ensemble]
     F6[Analysis runner]
-    F7[Binary report, ROC and PR curves]
-    F8[report.json, report.txt and plots]
+    F7[Per-split classification analysis]
+    F8[Binary report, confusion matrix,<br/>ROC and PR curves]
+    F9[Nested preictal probability analysis]
+    F10[Per-event probability comparison<br/>inner folds + outer ensemble]
+    F11[Preictal/interictal aggregate analysis<br/>moving average, threshold and calibration sweeps]
+    F12[Sensitivity and interictal FPR/hour<br/>Pareto and parameter-sweep plots]
     F1 --> F2 --> F3
     F4 --> F5
     F2 --> F6
     F5 --> F6
     F6 --> F7 --> F8
+    F6 --> F9 --> F10
+    F6 --> F11 --> F12
   end
 
   C1 --> A1 --> C2
@@ -88,13 +94,4 @@ flowchart TD
 The model box represents one architecture selected by `cfg.model.name`. CNN,
 graph, transformer, and MIL models are alternatives in the model registry; they
 are not a fixed sequence through which every input passes.
-
-## What To Inspect In Variables
-
-- In `run_train`: `cfg.cv`, `cfg.data`, `cfg.model`, `cfg.monitor`, `dl_name`.
-- In outer split loop: `outer_idx`, `len(train_val_set)`, `len(test_set)`, `test_set.y.sum()`.
-- In inner split loop: `inner_idx`, `len(train_set)`, `len(val_set)`, `train_set.y.sum()`, `val_set.y.sum()`.
-- In `_train_one_epoch`: `x.shape`, `y.shape`, `logits.shape`, `loss.item()`.
-- In `evaluate`: `targets_t.sum()`, `m["recall"]`, `m["f1"]`, `m["auc"]`.
-- In prediction: `weights`, `probs_ensemble`, `threshold`, `y_pred`.
-- In analysis: `y_true.shape`, `prob.shape`, confusion matrix, ROC/PR AUC.
+  FPR/hour.
