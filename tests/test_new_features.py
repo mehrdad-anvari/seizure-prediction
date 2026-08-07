@@ -183,6 +183,136 @@ def test_benchmark_simple_cnn():
     assert res["cpu_mean_ms"] > 0
 
 
+# ---------------------------------------------------------------- nested probability plots
+def test_analyze_interictal_prob_combined(tmp_path, monkeypatch):
+    from seizure_pred.analysis import nested_predictions
+
+    split_dir = tmp_path / "split_0"
+    rows = [
+        {
+            "y_true": 0,
+            "prob": 0.1,
+            "meta": {
+                "event_id": "interictal_1",
+                "label": "interictal",
+                "global_epoch_id": 10,
+                "epoch_index_within_event": 0,
+            },
+        },
+        {
+            "y_true": 0,
+            "prob": 0.2,
+            "meta": {
+                "event_id": "interictal_2",
+                "label": "interictal",
+                "global_epoch_id": 20,
+                "epoch_index_within_event": 0,
+            },
+        },
+        {
+            "y_true": 1,
+            "prob": 0.9,
+            "meta": {
+                "event_id": "preictal_1",
+                "label": "preictal",
+                "global_epoch_id": 30,
+                "epoch_index_within_event": 0,
+            },
+        },
+    ]
+    for path in (
+        split_dir / "predictions.jsonl",
+        split_dir / "inner_split_0" / "predictions.jsonl",
+    ):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", encoding="utf-8") as f:
+            for row in rows:
+                f.write(json.dumps(row) + "\n")
+
+    calls = []
+
+    def fake_combined(events, *, save_path, title=None):
+        calls.append({"events": events, "save_path": save_path, "title": title})
+
+    monkeypatch.setattr(nested_predictions, "plot_interictal_combined", fake_combined)
+    result = nested_predictions.analyze_interictal_prob(split_dir)
+
+    assert result["status"] == "ok"
+    assert result["aligned_samples"] == {
+        "interictal_1": 1,
+        "interictal_2": 1,
+    }
+    assert len(calls) == 1
+    assert calls[0]["save_path"].endswith("interictal_prob_combined_split_0.png")
+    assert len(calls[0]["events"]) == 2
+    for ev in calls[0]["events"]:
+        assert "x_index" in ev
+        assert "ensemble_prob" in ev
+        assert "inner_prob" in ev
+
+
+def test_analyze_interictal_pp_scatter(tmp_path, monkeypatch):
+    from seizure_pred.analysis import nested_predictions
+
+    split_dir = tmp_path / "split_0"
+    rows = [
+        {
+            "y_true": 0,
+            "prob": 0.1,
+            "meta": {
+                "event_id": "interictal_1",
+                "label": "interictal",
+                "global_epoch_id": 10,
+                "epoch_index_within_event": 0,
+                "pp_max": 0.0003,
+                "pp_mean": 0.0002,
+            },
+        },
+        {
+            "y_true": 0,
+            "prob": 0.2,
+            "meta": {
+                "event_id": "interictal_2",
+                "label": "interictal",
+                "global_epoch_id": 20,
+                "epoch_index_within_event": 1,
+                "pp_max": 0.0004,
+                "pp_mean": 0.00015,
+            },
+        },
+    ]
+    (split_dir / "predictions.jsonl").parent.mkdir(parents=True, exist_ok=True)
+    with (split_dir / "predictions.jsonl").open("w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(json.dumps(row) + "\n")
+
+    calls = []
+
+    def fake_scatter(prob, pp_max, pp_mean, *, save_path, title=None, event_type="interictal", x_index=None):
+        calls.append({
+            "prob": prob,
+            "pp_max": pp_max,
+            "pp_mean": pp_mean,
+            "save_path": save_path,
+            "title": title,
+            "x_index": x_index,
+        })
+
+    monkeypatch.setattr(nested_predictions, "plot_prob_vs_pp_scatter", fake_scatter)
+    result = nested_predictions.analyze_interictal_pp_scatter(split_dir)
+
+    assert result["status"] == "ok"
+    assert result["n_interictal_samples"] == 2
+    assert len(calls) == 1
+    assert calls[0]["save_path"].endswith("interictal_pp_scatter_split_0.png")
+    assert len(calls[0]["prob"]) == 2
+    assert len(calls[0]["pp_max"]) == 2
+    assert len(calls[0]["pp_mean"]) == 2
+    # pp values match the meta fields.
+    assert calls[0]["pp_max"][0] == 0.0003
+    assert calls[0]["pp_mean"][1] == 0.00015
+
+
 # ---------------------------------------------------------------- nested calibration sweep
 def test_analyze_nested_calibration_on_fake_pkl():
     from seizure_pred.analysis.calibration_sweep import analyze_nested_calibration
