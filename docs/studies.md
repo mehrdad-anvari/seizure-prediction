@@ -71,25 +71,37 @@ Randomized or stratified sampling may expose the model to a more diverse trainin
 | `EXP-001-D`   | 0.8024 | 0.2630 | 1.0  | 116.58 | 6.88 | 
 ---
 
-## STUDY-002: <Study Title>
+## STUDY-002: Signal Normalization
 
-**Question**
+### Question
 
-> What is being evaluated?
+> Which signal normalization method provides the best generalization performance for seizure prediction?
 
-**Base Configuration**
+### Motivation
 
-`configs/studies/<config_name>.yaml`
+Normalization can reduce subject- and channel-specific amplitude differences and make the input distribution easier for the model to learn. This study compares no normalization with z-score and robust normalization during preprocessing while keeping the data splitting, model, optimization, and training settings fixed.
 
-**Variables**
+### Hypothesis
 
-| Parameter | Values |
-|----------|--------|
-| | |
+Z-score normalization is expected to provide a strong baseline by centering each signal and scaling it by its standard deviation. Robust normalization may perform better when EEG contains substantial artifacts or outliers because it uses the median and interquartile range. Removing normalization may retain useful amplitude information but can make optimization and cross-subject generalization more difficult.
+
+### Base Configuration
+
+`configs/studies/study002.yaml`
+
+### Configurations
+
+| Configuration | Normalization | Preprocessing Option | Data Suffix |
+|--------------|---------------|----------------------|-------------|
+| `EXP-002-A` | None | omit `--normalize` | `_fd_5s` |
+| `EXP-002-B` | Z-score | `--normalize zscore` | `_fdn_5s` |
+| `EXP-002-C` | Robust | `--normalize robust` | `_fdn_5s` |
+
+Normalization is applied channel-wise to each continuous recording before segmentation. The training pipeline does not apply additional normalization.
+
+Both normalized variants currently use the same `_fdn_5s` suffix. Preprocessing robust data in the same dataset directory therefore overwrites the z-score NPZ files and processing-options files. Preserve each normalized dataset in a separate dataset directory, or complete the corresponding run before preprocessing the next normalized variant.
 
 ### Results
 
 | Configuration | Params | FLOPs | Latency (ms) | GPU Memory (MB) | AUC | Sensitivity | FPR/h | Notes |
 |---------|-------:|------:|-------------:|----------------:|----:|------------:|------:|------|
-| | | | | | | | | |
-| | | | | | | | | |
