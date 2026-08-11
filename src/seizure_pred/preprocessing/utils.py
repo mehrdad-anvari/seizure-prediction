@@ -422,6 +422,11 @@ def infer_preictal_interactal(
     raw.set_annotations(mne.Annotations(onset=combined_onsets, duration=combined_durs, description=combined_descs))
     return raw
 
+def validate_oversample_factor(factor, name):
+    if factor < 1 or not float(factor).is_integer():
+        raise ValueError(
+            f"{name} must be an integer >= 1, got {factor}"
+        )
 
 def extract_segments_with_labels_bids(
     raw: mne.io.Raw,
@@ -468,6 +473,9 @@ def extract_segments_with_labels_bids(
     - Augmented segments (due to oversampling) are flagged in metadata.
     
     """
+
+    validate_oversample_factor(preictal_oversample_factor, "preictal oversample factor")
+    validate_oversample_factor(seizure_oversample_factor, "seizure oversample factor")
 
     import numpy as np
     import pandas as pd
@@ -530,12 +538,19 @@ def extract_segments_with_labels_bids(
         # ------------------------------------------------------------------
         # Augmentation flag
         # ------------------------------------------------------------------
-        baseline = np.arange(0, duration + 1e-6, segment_sec)
+        if desc.lower() == "preictal":
+            oversample_factor = preictal_oversample_factor
+        elif desc.lower() == "seizure":
+            oversample_factor = seizure_oversample_factor
+        else:
+            oversample_factor = 1.0
 
-        def is_augmented(t):
-            return not np.any(np.isclose(t, baseline, atol=1e-3))
+        # Every Nth segment is the non-augmented/original segment.
+        # All segments between them are overlapping (augmented) segments.
+        step = max(1, int(round(oversample_factor)))
 
-        aug_flags = np.array([is_augmented(t) for t in starts], dtype=int)
+        aug_flags = np.ones(n_segs, dtype=int)
+        aug_flags[::step] = 0
 
         # ------------------------------------------------------------------
         # Noise features
