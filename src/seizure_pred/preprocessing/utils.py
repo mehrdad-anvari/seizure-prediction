@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 from typing import Tuple, List, Set, Optional, TYPE_CHECKING, Any
 import pandas as pd
-from scipy.signal import butter, sosfiltfilt
+from scipy.signal import butter, sosfilt
 
 
 def _require_mne():
@@ -76,12 +76,26 @@ def preprocess_chbmit(
         raw_proc = raw.copy().pick(picks="eeg")
         
         # 1. Bandpass filter
-        if apply_filter and filter_type == "FIR":
-            raw_proc.filter(l_freq, h_freq, fir_design="firwin", phase="zero-double")
-        elif apply_filter and filter_type == "IIR":
-            fs = raw_proc.info["sfreq"]
-            sos = butter(4, [l_freq, h_freq], btype="bandpass", fs=fs, output="sos")
-            raw_proc._data = sosfiltfilt(sos, raw_proc._data, axis=1)
+        if apply_filter:
+            if filter_type == "FIR":
+                raw_proc.filter(
+                    l_freq=l_freq,
+                    h_freq=h_freq,
+                    method="fir",
+                    phase="minimum",
+                )
+            elif filter_type == "IIR":
+                raw_proc.filter(
+                    l_freq=l_freq,
+                    h_freq=h_freq,
+                    method="iir",
+                    phase="forward",
+                )
+            else:
+                raise ValueError(
+                    f"Unknown filter_type: {filter_type!r}. "
+                    "Use 'IIR' or 'FIR'."
+                )
         
         # 3. ICA
         if apply_ica:
@@ -122,6 +136,8 @@ def preprocess_chbmit(
             raw_proc.resample(sfreq_new, npad="auto", method='fft')
         elif apply_downsampling and downsample_method == "polyphase":
             raw_proc.resample(sfreq_new, method='polyphase')
+        elif apply_downsampling and downsample_method == "decimate":
+            raw_proc.decimate(sfreq_new, method='polyphase')
 
         # 4. Normalization (channel-wise, on whole continuous data)
         if normalize is not None:
