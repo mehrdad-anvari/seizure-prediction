@@ -14,6 +14,7 @@ from seizure_pred.core.config import TrainConfig
 from seizure_pred.training.engine.callbacks import CallbackList
 from seizure_pred.training.engine.metrics import binary_classification_metrics, original_segment_mask
 from seizure_pred.training.engine.artifacts import ArtifactWriter
+from seizure_pred.training.engine.resource_metrics import TrainingResourceMonitor, infer_input_shape, loader_sample_count
 
 
 def _monitor_value(cfg: TrainConfig, val_loss: float, val_metrics: Dict[str, Any]) -> Optional[float]:
@@ -143,12 +144,22 @@ class Trainer:
         logger = logging.getLogger("seizure_pred")
         best_ckpt_path = ""
         last_ckpt_path = ""
+        monitor = TrainingResourceMonitor(self.model, self.device, infer_input_shape(train_loader))
+        monitor.start()
         for epoch in range(1, int(self.cfg.epochs) + 1):
             state["epoch"] = epoch
             self.callbacks.on_epoch_start(state)
 
+            monitor.start_epoch()
             train_loss = self._train_one_epoch(train_loader, state)
+            train_seconds = monitor.finish_train()
             val_out = self.evaluate(val_loader, state)
+            resource_row = monitor.finish_epoch(
+                epoch,
+                train_seconds,
+                loader_sample_count(train_loader),
+                len(val_out["val_targets"]),
+            )
 
             val_loss = float(val_out["loss"])
             state["train_loss"] = train_loss
@@ -179,6 +190,7 @@ class Trainer:
                         "epoch": epoch,
                         "train_loss": train_loss,
                         "val_loss": val_loss,
+                        **{f"resource_{k}": v for k, v in resource_row.items() if k != "epoch"},
                         **{f"val_{k}": v for k, v in state["val_metrics"].items() if isinstance(v, (int, float))},
                     }
                 )
@@ -255,6 +267,10 @@ class Trainer:
             except Exception:
                 pass
 
+        try:
+            self.writer.write_resource_metrics(monitor.finish())
+        except Exception:
+            pass
         self.callbacks.on_train_end(state)
         return best_ckpt_path or last_ckpt_path
 

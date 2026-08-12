@@ -102,6 +102,8 @@ def run_analyze_cmd(args: argparse.Namespace) -> None:
                 suppression_duration=suppression_duration,
                 make_plots=not no_plots,
             )
+        from seizure_pred.analysis.resources import summarize_resource_metrics
+        summarize_resource_metrics(args.run_dir, out_dir=args.out_dir)
     else:
         analyze_run(
             run_dir=args.run_dir,
@@ -124,3 +126,5 @@ def run_analyze_cmd(args: argparse.Namespace) -> None:
                     )
             except Exception as e:
                 print(f"[analysis] Failed nested preictal comparison: {e}")
+        from seizure_pred.analysis.resources import summarize_resource_metrics
+        summarize_resource_metrics(args.run_dir, out_dir=args.out_dir)
