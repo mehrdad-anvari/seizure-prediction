@@ -17,7 +17,9 @@ data:
   num_workers: 4
   use_uint16: false
   dataloader_type: "undersample"
-  suffix: _fdn_5s
+  suffix: _fd_5s
+  kwargs:
+    offline_transforms: ["instance_norm"]
 
 # Select best epoch by validation AUC for each inner fold.
 monitor: auc
