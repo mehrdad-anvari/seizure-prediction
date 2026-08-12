@@ -1,12 +1,48 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Any, Dict, Optional, Sequence
 
 import numpy as np
 import torch
 
 Tensor = torch.Tensor
+
+
+def _coerce_augmented_flag(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = value.strip().lower()
+        if value in {"", "none", "null", "nan"}:
+            return None
+        if value in {"false", "no"}:
+            return 0
+        if value in {"true", "yes"}:
+            return 1
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def is_original_segment_meta(meta: Any) -> bool:
+    """Return True when metadata identifies a non-augmented/original segment.
+
+    Missing augmentation metadata is treated as original so older artifacts remain
+    analyzable. For MIL bag metadata, every segment in the bag must be original.
+    """
+    if isinstance(meta, dict):
+        flag = _coerce_augmented_flag(meta.get("augmented"))
+        return flag is None or flag == 0
+    if isinstance(meta, Sequence) and not isinstance(meta, (str, bytes)):
+        return all(is_original_segment_meta(item) for item in meta)
+    return True
+
+
+def original_segment_mask(meta: Sequence[Any], size: int) -> Tensor:
+    mask = [is_original_segment_meta(meta[i]) if i < len(meta) else True for i in range(size)]
+    return torch.tensor(mask, dtype=torch.bool)
 
 
 def binary_auc(probs: np.ndarray, targets: np.ndarray) -> float:

@@ -12,6 +12,7 @@ import numpy as np
 
 from .io import read_jsonl
 from .plots import plot_preictal_prob
+from ..training.engine.metrics import is_original_segment_meta
 
 
 _INNER_SPLIT_RE = re.compile(r"^inner_split_(\d+)$")
@@ -50,6 +51,8 @@ def _preictal_rows_by_key(path: Path) -> Dict[_PredictionKey, Dict[str, Any]]:
             continue
 
         meta = row.get("meta")
+        if not is_original_segment_meta(meta):
+            continue
         if not isinstance(meta, dict):
             continue
         event_id = meta.get("event_id")
