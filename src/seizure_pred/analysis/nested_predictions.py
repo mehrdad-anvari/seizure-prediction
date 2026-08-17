@@ -13,6 +13,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from .io import read_jsonl
+from .plots import plot_preictal_prob
+from ..training.engine.metrics import is_original_segment_meta
 from .plots import (
     plot_interictal_combined,
     plot_preictal_prob,
@@ -62,6 +64,8 @@ def _rows_by_key(
             continue
 
         meta = row.get("meta")
+        if not is_original_segment_meta(meta):
+            continue
         if not isinstance(meta, dict):
             continue
         meta_label = meta.get("label")

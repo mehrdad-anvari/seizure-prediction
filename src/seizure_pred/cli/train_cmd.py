@@ -17,6 +17,7 @@ from seizure_pred.training.engine.pipeline import build_dataset, iter_splits, bu
 from seizure_pred.training.engine.artifacts import ArtifactWriter
 from seizure_pred.training.engine.trainer import Trainer
 from seizure_pred.training.engine.trainer_mil import TrainerMIL
+from seizure_pred.training.engine.metrics import original_segment_mask
 from seizure_pred.core.logging import setup_logging
 
 
@@ -272,6 +273,7 @@ def ensemble_outer_split(outer_split_dir: str, inner_n_fold: int, threshold: flo
     import torch
     from seizure_pred.training.engine.artifacts import ArtifactWriter
     from seizure_pred.training.engine.metrics import binary_classification_metrics
+    from seizure_pred.training.engine.metrics import is_original_segment_meta
 
     inner_probs = []
     val_aucs = []
@@ -305,6 +307,8 @@ def ensemble_outer_split(outer_split_dir: str, inner_n_fold: int, threshold: flo
                         if not line.strip():
                             continue
                         row = json.loads(line)
+                        if not is_original_segment_meta(row.get("meta")):
+                            continue
                         if "prob" in row:
                             probs.append(float(row["prob"]))
                         elif "logit" in row:
@@ -503,11 +507,18 @@ def run_nested_cv(cfg: TrainConfig, dataset: Any, stamp: str, args: argparse.Nam
                 val_metrics = {k: v for k, v in val_out.items() if k not in {"val_logits", "val_targets", "val_meta"}}
                 test_metrics = {k: v for k, v in test_out.items() if k not in {"val_logits", "val_targets", "val_meta"}}
                 
-                val_probs = torch.sigmoid(val_out["val_logits"]).tolist()
-                val_preds = (torch.sigmoid(val_out["val_logits"]) >= 0.5).long().tolist()
-                
-                test_probs = torch.sigmoid(test_out["val_logits"]).tolist()
-                test_preds = (torch.sigmoid(test_out["val_logits"]) >= 0.5).long().tolist()
+                val_mask = original_segment_mask(val_out["val_meta"], len(val_out["val_targets"]))
+                test_mask = original_segment_mask(test_out["val_meta"], len(test_out["val_targets"]))
+                val_metric_logits = val_out["val_logits"][val_mask]
+                val_metric_targets = val_out["val_targets"][val_mask]
+                test_metric_logits = test_out["val_logits"][test_mask]
+                test_metric_targets = test_out["val_targets"][test_mask]
+
+                val_probs = torch.sigmoid(val_metric_logits).tolist()
+                val_preds = (torch.sigmoid(val_metric_logits) >= 0.5).long().tolist()
+
+                test_probs = torch.sigmoid(test_metric_logits).tolist()
+                test_preds = (torch.sigmoid(test_metric_logits) >= 0.5).long().tolist()
                 
                 # Write files for this inner split
                 writer.write_metrics(val_metrics, filename="val_metrics.json")
@@ -535,9 +546,17 @@ def run_nested_cv(cfg: TrainConfig, dataset: Any, stamp: str, args: argparse.Nam
                             if line.strip():
                                 history_rows.append(json.loads(line))
                                 
-                val_indices = val_set.base_indices.tolist() if hasattr(val_set, "base_indices") else list(range(len(val_set)))
-                val_labels = val_set.y.tolist() if hasattr(val_set, "y") else [int(y) for y in val_out["val_targets"]]
-                test_labels = test_set.y.tolist() if hasattr(test_set, "y") else [int(y) for y in test_out["val_targets"]]
+                val_indices_all = val_set.base_indices.tolist() if hasattr(val_set, "base_indices") else list(range(len(val_set)))
+                test_indices_all = test_set.base_indices.tolist() if hasattr(test_set, "base_indices") else list(range(len(test_set)))
+                val_indices = [index for index, keep in zip(val_indices_all, val_mask.tolist()) if keep]
+                test_indices = [index for index, keep in zip(test_indices_all, test_mask.tolist()) if keep]
+                val_labels = val_metric_targets.tolist()
+                test_labels = test_metric_targets.tolist()
+                val_meta = [meta for meta, keep in zip(val_out["val_meta"], val_mask.tolist()) if keep]
+                test_meta = [meta for meta, keep in zip(test_out["val_meta"], test_mask.tolist()) if keep]
+                if inner_idx == 0:
+                    fold_data['test_indices'] = test_indices
+                    fold_data['y_test'] = test_labels
                 
                 inner_fold_data = {
                     'inner_fold': inner_idx + 1,
@@ -548,9 +567,11 @@ def run_nested_cv(cfg: TrainConfig, dataset: Any, stamp: str, args: argparse.Nam
                     'val_probs': val_probs,
                     'val_preds': val_preds,
                     'val_labels': val_labels,
+                    'val_meta': val_meta,
                     'test_probs': test_probs,
                     'test_preds': test_preds,
                     'test_labels': test_labels,
+                    'test_meta': test_meta,
                     'val_metrics': val_metrics,
                     'test_metrics': test_metrics
                 }

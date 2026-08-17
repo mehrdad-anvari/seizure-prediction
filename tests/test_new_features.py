@@ -33,6 +33,26 @@ def test_binary_metrics_compute_auc_and_ap():
     assert 0.0 <= m["ap"] <= 1.0
 
 
+def test_prediction_metrics_ignore_augmented_segments():
+    from seizure_pred.analysis.runs import load_predictions
+    from seizure_pred.training.engine.metrics import original_segment_mask
+
+    assert original_segment_mask([
+        {"augmented": 0}, {"augmented": 1}, {}, [{"augmented": 0}]
+    ], 4).tolist() == [True, False, True, True]
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
+        f.write(json.dumps({"y_true": 0, "prob": 0.1, "meta": {"augmented": 0}}) + "\n")
+        f.write(json.dumps({"y_true": 1, "prob": 0.9, "meta": {"augmented": 1}}) + "\n")
+        path = f.name
+    try:
+        y_true, prob, _, _ = load_predictions(path)
+        assert y_true.tolist() == [0]
+        assert prob.tolist() == [0.1]
+    finally:
+        os.unlink(path)
+
+
 def test_auc_known_value():
     from seizure_pred.training.engine.metrics import binary_auc
 

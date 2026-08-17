@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 from typing import Tuple, List, Set, Optional, TYPE_CHECKING, Any
 import pandas as pd
-from scipy.signal import butter, sosfiltfilt
+from scipy.signal import butter, sosfilt
 
 
 def _require_mne():
@@ -76,12 +76,26 @@ def preprocess_chbmit(
         raw_proc = raw.copy().pick(picks="eeg")
         
         # 1. Bandpass filter
-        if apply_filter and filter_type == "FIR":
-            raw_proc.filter(l_freq, h_freq, fir_design="firwin", phase="zero-double")
-        elif apply_filter and filter_type == "IIR":
-            fs = raw_proc.info["sfreq"]
-            sos = butter(4, [l_freq, h_freq], btype="bandpass", fs=fs, output="sos")
-            raw_proc._data = sosfiltfilt(sos, raw_proc._data, axis=1)
+        if apply_filter:
+            if filter_type == "FIR":
+                raw_proc.filter(
+                    l_freq=l_freq,
+                    h_freq=h_freq,
+                    method="fir",
+                    phase="minimum",
+                )
+            elif filter_type == "IIR":
+                raw_proc.filter(
+                    l_freq=l_freq,
+                    h_freq=h_freq,
+                    method="iir",
+                    phase="forward",
+                )
+            else:
+                raise ValueError(
+                    f"Unknown filter_type: {filter_type!r}. "
+                    "Use 'IIR' or 'FIR'."
+                )
         
         # 3. ICA
         if apply_ica:
@@ -122,6 +136,8 @@ def preprocess_chbmit(
             raw_proc.resample(sfreq_new, npad="auto", method='fft')
         elif apply_downsampling and downsample_method == "polyphase":
             raw_proc.resample(sfreq_new, method='polyphase')
+        elif apply_downsampling and downsample_method == "decimate":
+            raw_proc.decimate(sfreq_new, method='polyphase')
 
         # 4. Normalization (channel-wise, on whole continuous data)
         if normalize is not None:
@@ -422,6 +438,11 @@ def infer_preictal_interactal(
     raw.set_annotations(mne.Annotations(onset=combined_onsets, duration=combined_durs, description=combined_descs))
     return raw
 
+def validate_oversample_factor(factor, name):
+    if factor < 1 or not float(factor).is_integer():
+        raise ValueError(
+            f"{name} must be an integer >= 1, got {factor}"
+        )
 
 def extract_segments_with_labels_bids(
     raw: mne.io.Raw,
@@ -468,6 +489,9 @@ def extract_segments_with_labels_bids(
     - Augmented segments (due to oversampling) are flagged in metadata.
     
     """
+
+    validate_oversample_factor(preictal_oversample_factor, "preictal oversample factor")
+    validate_oversample_factor(seizure_oversample_factor, "seizure oversample factor")
 
     import numpy as np
     import pandas as pd
@@ -530,12 +554,19 @@ def extract_segments_with_labels_bids(
         # ------------------------------------------------------------------
         # Augmentation flag
         # ------------------------------------------------------------------
-        baseline = np.arange(0, duration + 1e-6, segment_sec)
+        if desc.lower() == "preictal":
+            oversample_factor = preictal_oversample_factor
+        elif desc.lower() == "seizure":
+            oversample_factor = seizure_oversample_factor
+        else:
+            oversample_factor = 1.0
 
-        def is_augmented(t):
-            return not np.any(np.isclose(t, baseline, atol=1e-3))
+        # Every Nth segment is the non-augmented/original segment.
+        # All segments between them are overlapping (augmented) segments.
+        step = max(1, int(round(oversample_factor)))
 
-        aug_flags = np.array([is_augmented(t) for t in starts], dtype=int)
+        aug_flags = np.ones(n_segs, dtype=int)
+        aug_flags[::step] = 0
 
         # ------------------------------------------------------------------
         # Noise features

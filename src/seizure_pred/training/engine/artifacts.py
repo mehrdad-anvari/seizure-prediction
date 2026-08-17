@@ -52,6 +52,7 @@ class ArtifactWriter:
                         "config": "config.json",
                         "history": "history.jsonl",
                         "metrics": "metrics.json",
+                        "resource_metrics": "resource_metrics.json",
                         "predictions": "predictions.jsonl",
                         "checkpoints_dir": "checkpoints/",
                     },
@@ -88,6 +89,15 @@ class ArtifactWriter:
         with open(self._path(filename), "w", encoding="utf-8") as f:
             json.dump(
                 {"schema_version": self.schema_version, "written_at": _utc_now_iso(), "metrics": dict(metrics)},
+                f,
+                indent=2,
+                default=_json_default,
+            )
+
+    def write_resource_metrics(self, metrics: Dict[str, Any]) -> None:
+        with open(self._path("resource_metrics.json"), "w", encoding="utf-8") as f:
+            json.dump(
+                {"schema_version": self.schema_version, "written_at": _utc_now_iso(), **dict(metrics)},
                 f,
                 indent=2,
                 default=_json_default,

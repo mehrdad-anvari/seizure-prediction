@@ -5,8 +5,14 @@ from typing import Optional, Tuple
 
 import numpy as np
 
+from ..training.engine.metrics import is_original_segment_meta
 
-def load_predictions(path: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Optional[np.ndarray]]:
+
+def load_predictions(
+    path: str,
+    *,
+    original_only: bool = True,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Optional[np.ndarray]]:
     """Load standardized predictions.jsonl.
 
     Returns:
@@ -27,6 +33,8 @@ def load_predictions(path: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Opt
             if not line.strip():
                 continue
             row = json.loads(line)
+            if original_only and not is_original_segment_meta(row.get("meta")):
+                continue
             y_true.append(int(row["y_true"]))
             prob.append(float(row.get("prob", 0.0)))
             y_pred.append(int(row.get("y_pred", 0)))
