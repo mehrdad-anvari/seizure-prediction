@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import math
 import re
 import warnings
@@ -12,9 +11,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from .io import read_jsonl
-from .plots import plot_preictal_prob
 from ..training.engine.metrics import is_original_segment_meta
+from .io import read_jsonl
 from .plots import (
     plot_interictal_combined,
     plot_preictal_prob,
@@ -359,9 +357,9 @@ def _extract_pp_data(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None:
     """Extract ``(prob, pp_max, pp_mean, epoch_index)`` from predictions.jsonl.
 
-    Filters rows by *target* and *event_type*, then reads the model
-    probability and EEG peak-to-peak features (pp_max, pp_mean) from meta.
-    Returns None if no matching rows exist.
+    Filters to original rows matching *target* and *event_type*, then reads the
+    model probability and EEG peak-to-peak features (pp_max, pp_mean) from
+    metadata. Returns None if no matching rows exist.
     """
     probs: list[float] = []
     pp_max_list: list[float] = []
@@ -374,6 +372,8 @@ def _extract_pp_data(
             continue
 
         meta = row.get("meta")
+        if not is_original_segment_meta(meta):
+            continue
         if not isinstance(meta, dict):
             continue
         meta_label = meta.get("label")

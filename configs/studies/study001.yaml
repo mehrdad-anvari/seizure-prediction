@@ -17,7 +17,7 @@ data:
   num_workers: 4
   use_uint16: false
   dataloader_type: "undersample"
-  suffix: _fd_5s
+  suffix: _fd_5s_prex5
   kwargs:
     offline_transforms: ["instance_norm"]
 

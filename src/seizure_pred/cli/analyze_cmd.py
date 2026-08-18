@@ -205,10 +205,9 @@ def run_analyze_cmd(args: argparse.Namespace) -> None:
                         f"for {split_name}"
                     )
             except Exception as e:
-                print(f"[analysis] Failed nested preictal comparison: {e}")
-        from seizure_pred.analysis.resources import summarize_resource_metrics
-        summarize_resource_metrics(args.run_dir, out_dir=args.out_dir)
                 print(
                     f"[analysis] Failed combined P-P scatter "
                     f"for {split_name}: {e}"
                 )
+        from seizure_pred.analysis.resources import summarize_resource_metrics
+        summarize_resource_metrics(args.run_dir, out_dir=args.out_dir)
