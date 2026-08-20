@@ -12,7 +12,7 @@ class WaveletFilterBank(nn.Module):
     combine_mode: 'upsample' | 'concat_time' | 'mean_pool'
     """
 
-    def __init__(self, fs: int, combine_mode: str = "concat_time"):
+    def __init__(self, fs: int = 128, combine_mode: str = "concat_time"):
         super().__init__()
         assert combine_mode in ["upsample", "concat_time", "mean_pool"]
         self.fs = fs
