@@ -8,14 +8,14 @@ For all studies we used these **Processing Options** unless otherwise mentioned:
 
 `save_uint16: False`
 `apply_filter: True`
-`filter_type: FIR`
+`filter_type: IRR`
 `l_freq: 0.5`
 `h_freq: 50.0`
 `apply_ica: False`
 `apply_downsampling: True`
 `downsample_method: polyphase`
 `sfreq_new: 128.0`
-`normalize: None`
+`normalize: instance_norm`
 `segment_sec: 5`
 `preictal_oversample_factor: 1`
 `seizure_oversample_factor: 1`
