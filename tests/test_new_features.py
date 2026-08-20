@@ -273,69 +273,6 @@ def test_analyze_interictal_prob_combined(tmp_path, monkeypatch):
         assert "inner_prob" in ev
 
 
-def test_analyze_interictal_pp_scatter(tmp_path, monkeypatch):
-    from seizure_pred.analysis import nested_predictions
-
-    split_dir = tmp_path / "split_0"
-    rows = [
-        {
-            "y_true": 0,
-            "prob": 0.1,
-            "meta": {
-                "event_id": "interictal_1",
-                "label": "interictal",
-                "global_epoch_id": 10,
-                "epoch_index_within_event": 0,
-                "augmented": 0,
-                "pp_max": 0.0003,
-                "pp_mean": 0.0002,
-            },
-        },
-        {
-            "y_true": 0,
-            "prob": 0.2,
-            "meta": {
-                "event_id": "interictal_2",
-                "label": "interictal",
-                "global_epoch_id": 20,
-                "epoch_index_within_event": 1,
-                "augmented": 1,
-                "pp_max": 0.0004,
-                "pp_mean": 0.00015,
-            },
-        },
-    ]
-    (split_dir / "predictions.jsonl").parent.mkdir(parents=True, exist_ok=True)
-    with (split_dir / "predictions.jsonl").open("w", encoding="utf-8") as f:
-        for row in rows:
-            f.write(json.dumps(row) + "\n")
-
-    calls = []
-
-    def fake_scatter(prob, pp_max, pp_mean, *, save_path, title=None, event_type="interictal", x_index=None):
-        calls.append({
-            "prob": prob,
-            "pp_max": pp_max,
-            "pp_mean": pp_mean,
-            "save_path": save_path,
-            "title": title,
-            "x_index": x_index,
-        })
-
-    monkeypatch.setattr(nested_predictions, "plot_prob_vs_pp_scatter", fake_scatter)
-    result = nested_predictions.analyze_interictal_pp_scatter(split_dir)
-
-    assert result["status"] == "ok"
-    assert result["n_interictal_samples"] == 1
-    assert len(calls) == 1
-    assert calls[0]["save_path"].endswith("interictal_pp_scatter_split_0.png")
-    assert calls[0]["prob"].tolist() == [0.1]
-    assert calls[0]["pp_max"].tolist() == [0.0003]
-    assert calls[0]["pp_mean"].tolist() == [0.0002]
-    # pp values match the meta fields.
-    assert calls[0]["pp_max"][0] == 0.0003
-
-
 def test_analyze_pp_scatter_combined_ignores_augmented_segments(tmp_path, monkeypatch):
     from seizure_pred.analysis import nested_predictions
 

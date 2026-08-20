@@ -12,7 +12,6 @@ from .metrics import binary_report, roc_curve, pr_curve, auc_trapz, moving_avera
 from .summary import analyze_multi_split_summary  # noqa: F401
 from .nested_predictions import (  # noqa: F401
     analyze_interictal_prob,
-    analyze_interictal_pp_scatter,
     analyze_pp_scatter_combined,
     analyze_preictal_prob,
     ananlyze_preictal_prob,
@@ -24,7 +23,6 @@ from .plots import (  # noqa: F401
     plot_interictal_prob,
     plot_pr,
     plot_preictal_prob,
-    plot_prob_vs_pp_scatter,
     plot_prob_vs_pp_scatter_combined,
     plot_roc,
 )
@@ -40,7 +38,6 @@ __all__ = [
     "clinical_metrics",
     "analyze_multi_split_summary",
     "analyze_interictal_prob",
-    "analyze_interictal_pp_scatter",
     "analyze_preictal_prob",
     "analyze_pp_scatter_combined",
     "ananlyze_preictal_prob",
@@ -51,6 +48,5 @@ __all__ = [
     "plot_interictal_combined",
     "plot_interictal_prob",
     "plot_preictal_prob",
-    "plot_prob_vs_pp_scatter",
     "plot_prob_vs_pp_scatter_combined",
 ]

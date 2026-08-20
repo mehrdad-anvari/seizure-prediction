@@ -46,7 +46,6 @@ def run_analyze_cmd(args: argparse.Namespace) -> None:
     if not no_plots:
         from seizure_pred.analysis.nested_predictions import (
             analyze_interictal_prob,
-            analyze_interictal_pp_scatter,
             analyze_preictal_prob,
             analyze_pp_scatter_combined,
         )
@@ -86,23 +85,6 @@ def run_analyze_cmd(args: argparse.Namespace) -> None:
                             f"[analysis] Failed nested {event_type} comparison "
                             f"for split_{split_index}: {e}"
                         )
-                # P-P scatter (interictal only, colour by epoch index).
-                try:
-                    scatter_result = analyze_interictal_pp_scatter(
-                        split_dir,
-                        out_dir=split_out_dir,
-                        sampling_period=sampling_period,
-                    )
-                    if scatter_result["status"] == "ok":
-                        print(
-                            f"[analysis] Generated interictal P-P scatter "
-                            f"for split_{split_index}"
-                        )
-                except Exception as e:
-                    print(
-                        f"[analysis] Failed interictal P-P scatter "
-                        f"for split_{split_index}: {e}"
-                    )
                 # Combined P-P scatter (interictal + preictal, colour-coded).
                 try:
                     combined = analyze_pp_scatter_combined(
@@ -175,23 +157,6 @@ def run_analyze_cmd(args: argparse.Namespace) -> None:
                         f"[analysis] Failed nested {event_type} comparison "
                         f"for {split_name}: {e}"
                     )
-            # P-P scatter (interictal only, colour by epoch index).
-            try:
-                scatter_result = analyze_interictal_pp_scatter(
-                    args.run_dir,
-                    out_dir=args.out_dir,
-                    sampling_period=sampling_period,
-                )
-                if scatter_result["status"] == "ok":
-                    print(
-                        f"[analysis] Generated interictal P-P scatter "
-                        f"for {split_name}"
-                    )
-            except Exception as e:
-                print(
-                    f"[analysis] Failed interictal P-P scatter "
-                    f"for {split_name}: {e}"
-                )
             # Combined P-P scatter (interictal + preictal, colour-coded).
             try:
                 combined = analyze_pp_scatter_combined(

@@ -16,7 +16,6 @@ from .io import read_jsonl
 from .plots import (
     plot_interictal_combined,
     plot_preictal_prob,
-    plot_prob_vs_pp_scatter,
     plot_prob_vs_pp_scatter_combined,
 )
 
@@ -400,55 +399,6 @@ def _extract_pp_data(
         np.asarray(pp_mean_list, dtype=np.float64),
         np.asarray(epoch_indices, dtype=np.float64),
     )
-
-
-def analyze_interictal_pp_scatter(
-    split_dir: str | Path,
-    *,
-    out_dir: Optional[str | Path] = None,
-    sampling_period: float = 5.0,
-) -> Dict[str, Any]:
-    """Scatter plot: model prob vs EEG pp_max / pp_mean (interictal only).
-
-    Points are coloured by epoch index for temporal context.
-    """
-    split_path = Path(split_dir)
-    outer_path = split_path / "predictions.jsonl"
-    if not outer_path.exists():
-        return {"status": "missing_outer_predictions", "split_dir": str(split_path)}
-
-    if sampling_period <= 0:
-        raise ValueError("sampling_period must be greater than zero")
-
-    data = _extract_pp_data(outer_path, target=0, event_type="interictal")
-    if data is None:
-        return {"status": "no_interictal_predictions", "split_dir": str(split_path)}
-
-    prob, pp_max, pp_mean, epoch_index = data
-
-    output_path = Path(out_dir) if out_dir is not None else split_path / "analysis"
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    split_name = _safe_filename_component(split_path.name)
-    filename = f"interictal_pp_scatter_{split_name}.png"
-    save_path = output_path / filename
-    plot_prob_vs_pp_scatter(
-        prob, pp_max, pp_mean,
-        save_path=str(save_path),
-        title=(
-            f"{split_path.name}: "
-            "interictal — model prob vs EEG P-P"
-        ),
-        event_type="interictal",
-        x_index=epoch_index,
-    )
-
-    return {
-        "status": "ok",
-        "split_dir": str(split_path),
-        "n_interictal_samples": len(prob),
-        "artifacts": {"interictal_pp_scatter": str(save_path)},
-    }
 
 
 def analyze_pp_scatter_combined(
