@@ -15,13 +15,15 @@ For all studies we used these **Processing Options** unless otherwise mentioned:
 `apply_downsampling: True`
 `downsample_method: polyphase`
 `sfreq_new: 128.0`
-`normalize: zscore`
+`normalize: None`
 `segment_sec: 5`
 `preictal_oversample_factor: 1`
 `seizure_oversample_factor: 1`
 `preictal_minutes: 15`
 `post_buffer_minutes: 60`
 `pre_buffer_minutes: 45`
+
+Unless otherwise stated, normalization is applied as an offline training transform after loading the unnormalized segments. Each channel is normalized independently within each segment over its time samples.
 
 ---
 
@@ -65,31 +67,41 @@ Randomized or stratified sampling may expose the model to a more diverse trainin
 
 | Configuration | AUC    | F1     | TPR  | FPR/h  | FPR/h supp. | 
 |---------------|:------:|:------:|:----:|:------:|:------------:|
-| `EXP-001-A`   | 0.8353 | 0.2904 | 1.0  | 109.03 | 6.70 | 
-| `EXP-001-B`   | 0.7905 | 0.2371 | 1.0  | 113.55 | 6.97 | 
-| `EXP-001-C`   | 0.7819 | 0.2324 | 1.0  | 120.92 | 7.27 | 
-| `EXP-001-D`   | 0.8024 | 0.2630 | 1.0  | 116.58 | 6.88 | 
+| `EXP-001-A`   |        |        |      |        |      |
+| `EXP-001-B`   |        |        |      |        |      |
+| `EXP-001-C`   |        |        |      |        |      |
+| `EXP-001-D`   |        |        |      |        |      |
 ---
 
-## STUDY-002: <Study Title>
+## STUDY-002: Signal Normalization
 
-**Question**
+### Question
 
-> What is being evaluated?
+> Which signal normalization method provides the best generalization performance for seizure prediction?
 
-**Base Configuration**
+### Motivation
 
-`configs/studies/<config_name>.yaml`
+Normalization can reduce segment- and channel-specific amplitude differences and make the input distribution easier for the model to learn. This study compares no normalization with z-score and robust normalization as offline training transforms while keeping preprocessing, data splitting, model, optimization, and training settings fixed.
 
-**Variables**
+### Hypothesis
 
-| Parameter | Values |
-|----------|--------|
-| | |
+Z-score normalization is expected to provide a strong baseline by centering each signal and scaling it by its standard deviation. Robust normalization may perform better when EEG contains substantial artifacts or outliers because it uses the median and median absolute deviation. Removing normalization may retain useful amplitude information but can make optimization and cross-subject generalization more difficult.
+
+### Base Configuration
+
+`configs/studies/study002.yaml`
+
+### Configurations
+
+| Configuration | Normalization | Offline Transform | Data Suffix |
+|--------------|---------------|-------------------|-------------|
+| `EXP-002-A` | None | `offline_transforms: []` | `_fd_5s` |
+| `EXP-002-B` | Z-score | `offline_transforms: ["instance_norm"]` | `_fd_5s` |
+| `EXP-002-C` | Robust | `offline_transforms: ["robust_norm"]` | `_fd_5s` |
+
+All experiments load the same unnormalized `_fd_5s` segments. Offline transforms are applied once when the training dataset is loaded and operate independently on every channel within every segment. `instance_norm` centers by the channel mean and scales by its standard deviation; `robust_norm` centers by the channel median and scales by the median absolute deviation estimate.
 
 ### Results
 
 | Configuration | Params | FLOPs | Latency (ms) | GPU Memory (MB) | AUC | Sensitivity | FPR/h | Notes |
 |---------|-------:|------:|-------------:|----------------:|----:|------------:|------:|------|
-| | | | | | | | | |
-| | | | | | | | | |

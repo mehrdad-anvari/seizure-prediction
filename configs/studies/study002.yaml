@@ -6,7 +6,7 @@ amp: true
 grad_clip_norm: 1.0
 log_every: 10
 save_dir: runs
-run_name: study_001
+run_name: study_002
 
 data:
   name: chbmit_npz
@@ -17,9 +17,9 @@ data:
   num_workers: 4
   use_uint16: false
   dataloader_type: "undersample"
-  suffix: _fd_5s_prex5
+  suffix: _fd_5s
   kwargs:
-    offline_transforms: ["instance_norm"]
+    offline_transforms: []
 
 # Select best epoch by validation AUC for each inner fold.
 monitor: auc
@@ -33,7 +33,7 @@ cv:
   outer_mode: "split"             # Outer custom KFold splitting mode
   outer_M: 10                     # Outer custom KFold stratum size
   inner_method: "KFold"           # Inner CV method: LOO or KFold
-  inner_n_fold: 5                 # Number of inner folds
+  inner_n_fold: 5                 # Inner number of folds
   inner_shuffle: false
   inner_mode: "per_event_strata"  # Inner custom KFold splitting mode
   inner_M: 10                     # Inner custom KFold stratum size

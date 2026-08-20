@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import tempfile
 
 import torch
@@ -78,6 +79,24 @@ def test_smoke_pipeline_end_to_end():
         )
         best = trainer.fit(train_loader=train_loader, val_loader=val_loader)
         assert os.path.exists(best)
+        resource_path = os.path.join(td, "resource_metrics.json")
+        assert os.path.exists(resource_path)
+        with open(resource_path, "r", encoding="utf-8") as f:
+            resources = json.load(f)
+        assert resources["model"]["total_parameters"] > 0
+        assert resources["model"]["trainable_parameters"] > 0
+        assert resources["training"]["total_wall_time_seconds"] > 0
+        assert len(resources["training"]["epochs"]) == cfg.epochs
+
+        with open(os.path.join(td, "history.jsonl"), "r", encoding="utf-8") as f:
+            history = json.loads(next(f))
+        assert history["resource_wall_time_seconds"] > 0
+        assert history["resource_train_time_seconds"] > 0
+
+        from seizure_pred.analysis.resources import summarize_resource_metrics
+        resource_summary = summarize_resource_metrics(td)
+        assert resource_summary["training_runs"] == 1
+        assert os.path.exists(os.path.join(td, "analysis", "resource_summary.json"))
 
         rows = list(predict(trainer.model, val_loader, device="cpu", threshold=0.5))
         writer.write_predictions(rows)
