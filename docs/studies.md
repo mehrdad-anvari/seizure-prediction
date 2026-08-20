@@ -67,8 +67,8 @@ Randomized or stratified sampling may expose the model to a more diverse trainin
 
 | Configuration | AUC    | F1     | TPR  | FPR/h  | FPR/h supp. | 
 |---------------|:------:|:------:|:----:|:------:|:------------:|
-| `EXP-001-A`   |        |        |      |        |      |
-| `EXP-001-B`   |        |        |      |        |      |
+| `EXP-001-A`   | 0.8648 | 0.3228 | 1.0  | 110.01 | 5.69 |
+| `EXP-001-B`   | 0.7625 | 0.2870 | 1.0  |  96.32 | 5.92 |
 | `EXP-001-C`   |        |        |      |        |      |
 | `EXP-001-D`   |        |        |      |        |      |
 ---
