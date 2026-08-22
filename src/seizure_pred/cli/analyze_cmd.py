@@ -24,7 +24,7 @@ def add_analyze_cmd(sub: argparse._SubParsersAction) -> None:
                    help="Thresholds to sweep (default: 0.3 0.4 0.5 0.6 0.7)")
     p.add_argument("--percentiles", nargs="+", type=int, default=None,
                    help="Percentiles for percentile calibration (default: 5 10 15 20)")
-    p.add_argument("--suppression-duration", type=int, default=None,
+    p.add_argument("--suppression-duration", type=int, default=60,
                    help="Suppression window (in samples) for the suppressed FPR/hour metric")
     p.set_defaults(func=run_analyze_cmd)
 

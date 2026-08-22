@@ -8,14 +8,14 @@ For all studies we used these **Processing Options** unless otherwise mentioned:
 
 `save_uint16: False`
 `apply_filter: True`
-`filter_type: FIR`
+`filter_type: IRR`
 `l_freq: 0.5`
 `h_freq: 50.0`
 `apply_ica: False`
 `apply_downsampling: True`
 `downsample_method: polyphase`
 `sfreq_new: 128.0`
-`normalize: None`
+`normalize: instance_norm`
 `segment_sec: 5`
 `preictal_oversample_factor: 1`
 `seizure_oversample_factor: 1`
@@ -67,10 +67,10 @@ Randomized or stratified sampling may expose the model to a more diverse trainin
 
 | Configuration | AUC    | F1     | TPR  | FPR/h  | FPR/h supp. | 
 |---------------|:------:|:------:|:----:|:------:|:------------:|
-| `EXP-001-A`   |        |        |      |        |      |
-| `EXP-001-B`   |        |        |      |        |      |
-| `EXP-001-C`   |        |        |      |        |      |
-| `EXP-001-D`   |        |        |      |        |      |
+| `EXP-001-A`   | 0.8648 | 0.3228 | 1.0  | 110.01 | 5.69 |
+| `EXP-001-B`   | 0.7625 | 0.2870 | 1.0  |  96.32 | 5.92 |
+| `EXP-001-C`   | 0.8146 | 0.2995 | 1.0  | 110.58 | 5.73 |
+| `EXP-001-D`   | 0.8430 | 0.3123 | 1.0  |  94.86 | 5.40 |
 ---
 
 ## STUDY-002: Signal Normalization
