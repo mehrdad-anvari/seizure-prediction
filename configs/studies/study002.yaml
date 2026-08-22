@@ -19,7 +19,7 @@ data:
   dataloader_type: "undersample"
   suffix: _fd_5s
   kwargs:
-    offline_transforms: []
+    offline_transforms: ["wavelet_filterbank"]
 
 # Select best epoch by validation AUC for each inner fold.
 monitor: auc
@@ -33,7 +33,7 @@ cv:
   outer_mode: "split"             # Outer custom KFold splitting mode
   outer_M: 10                     # Outer custom KFold stratum size
   inner_method: "KFold"           # Inner CV method: LOO or KFold
-  inner_n_fold: 5                 # Inner number of folds
+  inner_n_fold: 5                 # Number of inner folds
   inner_shuffle: false
   inner_mode: "per_event_strata"  # Inner custom KFold splitting mode
   inner_M: 10                     # Inner custom KFold stratum size
