@@ -35,7 +35,7 @@ cv:
   inner_method: "KFold"           # Inner CV method: LOO or KFold
   inner_n_fold: 5                 # Number of inner folds
   inner_shuffle: false
-  inner_mode: "split"  # Inner custom KFold splitting mode
+  inner_mode: "per_event_strata"  # Inner custom KFold splitting mode
   inner_M: 10                     # Inner custom KFold stratum size
   random_state: 42                # Splitting random seed
 
