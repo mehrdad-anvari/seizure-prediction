@@ -103,5 +103,12 @@ All experiments load the same unnormalized `_fd_5s` segments. Offline transforms
 
 ### Results
 
+| Configuration | AUC    | F1     | TPR  | FPR/h  | FPR/h supp. | 
+|---------------|:------:|:------:|:----:|:------:|:------------:|
+| `EXP-002-A`   | 0.8379 | 0.2495 | 1.0  | 185.84 | 7.74 |
+| `EXP-002-B`   | 0.8648 | 0.3228 | 1.0  | 110.01 | 5.69 |
+| `EXP-002-C`   | 0.8729 | 0.3204 | 1.0  | 117.02 | 5.66 |
+---
+
 | Configuration | Params | FLOPs | Latency (ms) | GPU Memory (MB) | AUC | Sensitivity | FPR/h | Notes |
 |---------|-------:|------:|-------------:|----------------:|----:|------------:|------:|------|
