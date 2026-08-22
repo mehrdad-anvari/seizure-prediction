@@ -19,7 +19,7 @@ data:
   dataloader_type: "undersample"
   suffix: _fd_5s
   kwargs:
-    offline_transforms: ["wavelet_filterbank"]
+    offline_transforms: ["robust_norm", "wavelet_filterbank"]
 
 # Select best epoch by validation AUC for each inner fold.
 monitor: auc
