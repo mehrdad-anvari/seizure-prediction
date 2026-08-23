@@ -110,5 +110,57 @@ All experiments load the same unnormalized `_fd_5s` segments. Offline transforms
 | `EXP-002-C`   | 0.8729 | 0.3204 | 1.0  | 117.02 | 5.66 |
 ---
 
+## STUDY-003: Preictal Augmentation
+
+### Question
+
+> Does preprocessing-time preictal oversampling improve seizure prediction compared with `EXP-002-C`?
+
+### Motivation
+
+Preictal segments are scarce relative to interictal segments. This study increases the number of preictal training examples by extracting overlapping windows while keeping the signal processing, robust normalization, wavelet transform, data splitting, model, optimization, and training settings from `EXP-002-C` fixed.
+
+### Hypothesis
+
+Five-fold preictal oversampling may expose the model to more temporal views of each preictal event and improve discrimination. Because the augmented windows overlap, they are correlated rather than independent observations; event-separated outer folds remain necessary to prevent leakage into evaluation data.
+
+### Base Configuration
+
+`configs/studies/study003.yaml`
+
+The base configuration selects the augmented data used by `EXP-003-B`. The `EXP-003-A` result is reused directly from `EXP-002-C` and does not need to be retrained.
+
+### Configurations
+
+| Configuration | Preictal Oversample Factor | Data Suffix | Training Configuration |
+|--------------|----------------------------:|-------------|------------------------|
+| `EXP-003-A` | 1 | `_fd_5s` | Same as `EXP-002-C` |
+| `EXP-003-B` | 5 | `_fd_5s_prex5` | Same as `EXP-002-C` |
+
+`EXP-003-B` was preprocessed with:
+
+```text
+seizure-pred preprocess-chbmit --dataset-dir data/BIDS_CHB-MIT --subject 1 --no-ica --preictal-oversample-factor 5 --filter-type IIR
+```
+
+The session-level `event_stats.csv` path is shared by preprocessing variants and is overwritten on each preprocessing run. Event boundaries are unchanged between `_fd_5s` and `_fd_5s_prex5`, but preictal segment counts are not expected to be identical. The suffix-specific `processing_options_fd_5s_prex5.txt` files record the augmentation settings used to generate the training data.
+
+### Run
+
+Run the new augmented experiment in the `torch-gpu` environment:
+
+```text
+conda run -n torch-gpu seizure-pred train --config configs/studies/study003.yaml --strict
+```
+
+### Results
+
+| Configuration | AUC    | F1     | TPR  | FPR/h  | FPR/h supp. |
+|---------------|:------:|:------:|:----:|:------:|:------------:|
+| `EXP-003-A`   | 0.8729 | 0.3204 | 1.0  | 117.02 | 5.66 |
+| `EXP-003-B`   | 0.8584 | 0.3022 | 1.0  |  72.58 | 5.26 |
+
+---
+
 | Configuration | Params | FLOPs | Latency (ms) | GPU Memory (MB) | AUC | Sensitivity | FPR/h | Notes |
 |---------|-------:|------:|-------------:|----------------:|----:|------------:|------:|------|
