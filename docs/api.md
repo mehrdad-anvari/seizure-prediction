@@ -203,11 +203,23 @@ Model builders consume `ModelConfig` and register under `MODELS`.
 - `lmda`, `tslanet`, `cspnet`, `stnet`, `conformer`: wrapper-style builders that inject `in_channels` and `num_classes`
 - `simplevit` / `simple_vit`: compact transformer-style EEG model, with patch/grid and head dimensions configurable
 - `eegbandclassifier` and `eeg_band_classifier`: band-based classifier variants
+- `darnet`: dual attention refinement network, knobs are `chunk_size`, `d_model` (divisible by `num_heads`), `num_heads`, `attn_dropout`
 - `mb_dmgc_cwtffnet`: multi-branch model with channel/time and sampling-rate knobs
 
 ### Optional models
 
 - `labram`: requires optional dependencies such as `einops`
+- `mhanet`: multi-scale hybrid attention network, requires `einops`; `chunk_size` must equal the window length and `num_heads` must divide the channel count
+
+### Paper reconstructions
+
+Rebuilt from papers that publish no reference code; inferred choices are listed in each module docstring.
+
+- `fapex`: fractional neural frame operator + amplitude/phase state-space encoding + linear attention (`patch_size`, `d_model`, `d_state`, `depth`)
+- `md_rescapsnet`: CSP → STFT → SE-SA ResNet → capsule routing; reads `sfreq`, accepts `csp_filters`, pairs with the `capsule_margin` loss
+- `seizurenet_kan`: PLV graph + KAN-enhanced GCN (`hidden`, `grid_size`, `spline_order`); torch-only
+- `seresnet3d`: channel-stacked STFT volume + 3D SE residual modules (`nperseg`, `n_fft`, `stage_channels`); pairs with `focal`
+- `sbtm`: spectral/Hjorth/statistical features + Bi-LSTM (`num_steps`, `hidden_size`); the paper's metaheuristic optimiser is not implemented
 - `dgcnn2`, `rgnn`: require `torch-geometric`
 - `eeg_gnn_ssl`: graph model that may require adjacency helpers and optional scientific packages
 

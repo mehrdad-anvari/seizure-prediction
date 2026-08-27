@@ -22,7 +22,9 @@ clean, plugin-based refactor of the older `CP-DMGC-CWT` research codebase.
   sweep, Pareto frontier, suppression-based FPR/hour.
 - **Benchmarking**: params, FLOPs, CPU/GPU latency, GPU memory.
 - **XAI**: Captum IntegratedGradients attributions (optional).
-- **22 models** including graph models and the flagship `mb_dmgc_cwtffnet`.
+- **29 models** including graph models, attention models (`darnet`, `mhanet`),
+  paper reconstructions (`fapex`, `md_rescapsnet`, `seizurenet_kan`,
+  `seresnet3d`, `sbtm`) and the flagship `mb_dmgc_cwtffnet`.
 
 ## Quick links
 

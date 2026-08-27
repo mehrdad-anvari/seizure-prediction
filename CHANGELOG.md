@@ -6,6 +6,21 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [Unreleased]
 ### Added
+- Two attention models ported into the zoo and registered under `MODELS`:
+  `darnet` (DARNet, Yan et al., NeurIPS 2024) and `mhanet` (MHANet, Li et al.,
+  IJCAI 2025). Both take raw `(B, C, T)` windows; `mhanet` needs `einops` and a
+  `chunk_size` equal to the window length.
+- Five models reconstructed from papers in `papers/` that publish no reference
+  code — `fapex` (NeurIPS 2025), `md_rescapsnet` (BSPC 2026), `seizurenet_kan`
+  (JESTCH 2026), `seresnet3d` (iScience 2025) and `sbtm` (Sci. Reports 2026).
+  Their STFT / PLV-graph / feature front-ends run inside the model, so they
+  consume the same `(B, C, T)` windows as the rest of the zoo. Every choice not
+  stated by its paper is listed in the module docstring; `sbtm` omits the
+  paper's metaheuristic optimiser, which is a training procedure rather than
+  part of the network.
+- `capsule_margin` loss (Sabour-style margin loss on capsule norms) for
+  `md_rescapsnet`, and `compute_csp_filters` to fit that model's CSP projection
+  on a training split.
 - Validation AUC and average precision are now computed and logged every epoch
   (`val_auc`, `val_ap` in `history.jsonl` and `metrics.json`); previously AUC
   was silently absent (always 0.5) which broke AUC-weighted ensembling and

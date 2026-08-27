@@ -24,7 +24,28 @@ Use `seizure-pred list` to see exactly what is available in your environment
 | `simplevit` / `simple_vit` | ViT | requires `to_grid`; patch/grid dims |
 | `eeg_band_classifier` / `eegbandclassifier` | band classifier | expects offline `filterbank` |
 | `ce_stsenet` | multi-band ST-SENet | loads Db4 `scaling_filter.mat` (needs scipy) |
+| `darnet` | dual attention refinement | temporal self-attention + conv refinement; `chunk_size`, `d_model`, `num_heads`, `attn_dropout` |
+| `mhanet` | hybrid attention | channel + multi-scale global attention (needs einops); `chunk_size` must equal `T`, `num_heads` must divide the channel count |
 | `mb_dmgc_cwtffnet` | multi-branch graph + CWT | flagship; uses `ch_locs.npy` adjacency |
+
+## Models reconstructed from papers
+
+These come from papers in `papers/` that publish **no reference code**, so each is
+a reconstruction from the paper text: block structure and stated dimensions are
+followed, and every inferred choice is listed in the module docstring. Treat them
+as faithful-in-structure, not numerically equivalent to the authors' models.
+
+| Name | Paper | Notes |
+|------|-------|-------|
+| `fapex` | FAPEX, NeurIPS 2025 | fractional neural frame operator → amplitude/phase cross-encoding over bidirectional SSMs → linear attention across electrodes; `patch_size`, `d_model`, `d_state`, `depth`. Channel-count agnostic |
+| `md_rescapsnet` | MD-ResCapsNet, BSPC 2026 | CSP projection → STFT image → SE-SA ResNet → capsule routing; needs `sfreq`, optional `csp_filters` from `compute_csp_filters`; pair with the `capsule_margin` loss |
+| `seizurenet_kan` | SeizureNet-KAN, JESTCH 2026 | PLV graph over channels + KAN-enhanced GCN (B-splines, degree 3, grid 20); torch-only, no `torch_geometric` needed |
+| `seresnet3d` | 3D-SERESNet, iScience 2025 | channel-stacked STFT volume → three 3D SE residual modules; pair with the `focal` loss |
+| `sbtm` | SBTM, Sci. Reports 2026 | spectral + Hjorth + statistical features per sub-window → Bi-LSTM → dense head. The paper's Spizella metaheuristic optimiser is **not** implemented (see docstring) |
+
+The STFT/graph/feature front-ends run inside these models, so they all consume
+ordinary `(B, C, T)` windows like the rest of the zoo. `md_rescapsnet`, `seresnet3d`
+and `sbtm` read `sfreq`, so set it on the config.
 
 ## Graph / GNN models (optional `.[gnn]`)
 
