@@ -21,6 +21,17 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - `capsule_margin` loss (Sabour-style margin loss on capsule norms) for
   `md_rescapsnet`, and `compute_csp_filters` to fit that model's CSP projection
   on a training split.
+- Example configs for the seven new models in `configs/models/` (one file per
+  model), based on `configs/studies/study003.yaml`. Each drops
+  `wavelet_filterbank` — every one of these models reads real time samples, and
+  the filterbank's `concat_time` layout replaces the time axis with stacked
+  dyadic sub-bands — sets `in_channels`/`sfreq` explicitly (neither is inferred
+  anywhere in the pipeline), and uses the loss, optimizer, learning rate, batch
+  size and schedule its paper states, with every unstated value called out in a
+  comment.
+- `exponential` (ExponentialLR) and `cosine_warm_restarts`
+  (CosineAnnealingWarmRestarts) schedulers, required by the MD-ResCapsNet and
+  3D-SERESNet recipes respectively.
 - Validation AUC and average precision are now computed and logged every epoch
   (`val_auc`, `val_ap` in `history.jsonl` and `metrics.json`); previously AUC
   was silently absent (always 0.5) which broke AUC-weighted ensembling and
@@ -50,6 +61,14 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
   predictions schema, trainer contract, plugin guide) and a rewritten README.
 
 ### Changed
+- `fapex` now defaults to the paper's FAPEX-Small: `d_model` 64 → 128 and two
+  consecutive FrNFO/APCE pairs per layer (new `frnfo_per_layer`, default 2), from
+  Appendix H.2 of the supplementary. That also resolves Fig. 2's "Layer 1 …
+  Layer 12" axis — 12 is FAPEX-Base's 6 layers × 2 FrNFOs, not a 12-layer
+  backbone — so `depth` stays 4. `configs/models/fapex.yaml` carries the rest of
+  Appendix H: AdamW, 50 epochs with an `early_stopping` patience of 5, and a
+  learning rate / weight decay / dropout / batch size drawn from the grids H.4
+  searched. Its EMA (decay 0.995) and augmentation suite are not implemented.
 - `validate_dict` now resolves `from __future__ import annotations` string
   annotations via `get_type_hints`, so nested dataclass and type validation
   actually works (previously silently skipped).
@@ -59,6 +78,11 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
   build_loader APIs (it was previously non-functional).
 
 ### Fixed
+- `early_stopping` was a no-op: it looked for its monitored metric only in
+  `state["logs"]`, which neither `Trainer` nor `TrainerMIL` ever populates, so it
+  returned on every epoch and never stopped anything. It now resolves the metric
+  from `state["val_metrics"]` and the top-level loss keys, and accepts either
+  spelling (`auc` or `val_auc`).
 - `experiments/grid.py` constructor/registry/loader/fit call mismatches.
 - Example configs used the wrong field name `n_fold` (now `n_folds`).
 - Test `conftest` no longer hard-imports `mne`; tests skip gracefully when the

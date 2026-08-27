@@ -1,0 +1,110 @@
+# 3D-SERESNet (Zhang et al., iScience 2025) on CHB-MIT.
+#
+# Reconstruction from the paper text (no reference code published) — see the
+# module docstring in src/seizure_pred/models/seresnet3d.py.
+#
+# Baseline: configs/studies/study003.yaml. Deltas:
+#   - `offline_transforms: []`. The paper normalizes inside the network: Eq. 3
+#     z-scores every channel immediately before the STFT, which is what
+#     `normalize_input: true` does below. Adding an offline normalization would
+#     just be a second, differently-scaled pass. `wavelet_filterbank` is gone
+#     for the usual reason — the model's own STFT needs real time samples.
+#   - `amp: false` — `torch.stft` plus Conv3d in fp16 is where this model breaks
+#     first, and the 3D stack is memory- rather than compute-bound anyway.
+#
+# Training recipe from the paper (Sec. "Model training"): focal loss (chosen
+# there explicitly for preictal/interictal imbalance), batch size 32, 100
+# epochs, Adam with weight decay (`adamw`), learning rate 0.003, weight decay
+# 3e-5, and cosine annealing with warm restarts (T_0 = 10, T_mult = 2,
+# eta_min = 3e-4). Not stated by the paper: the focal `gamma` / `alpha`, which
+# keep the repo defaults.
+#
+# Two preprocessing differences from the paper are deliberate, so that this
+# config runs on the same segments as every other study:
+#   - the paper uses non-overlapping 10 s windows; here windows are 5 s (640
+#     samples at 128 Hz), which halves the STFT time axis.
+#   - the paper applies a 60 Hz notch; our sessions are IIR band-passed to
+#     0.5-50 Hz, so 60 Hz is already out of band.
+
+task: prediction
+seed: 42
+device: cuda
+epochs: 100
+amp: false
+grad_clip_norm: 1.0
+log_every: 10
+save_dir: runs
+run_name: seresnet3d
+
+data:
+  name: chbmit_npz
+  dataset_dir: data/BIDS_CHB-MIT
+  subject_id: "01"
+  task: prediction
+  batch_size: 32
+  num_workers: 4
+  use_uint16: false
+  dataloader_type: "undersample"
+  suffix: _fd_5s_prex5
+  kwargs:
+    offline_transforms: []   # Eq. 3 z-score happens inside the model
+
+monitor: auc
+monitor_mode: max
+
+cv:
+  outer_method: "LOO"
+  outer_shuffle: false
+  outer_n_fold: 8
+  outer_mode: "split"
+  outer_M: 10
+  inner_method: "KFold"
+  inner_n_fold: 5
+  inner_shuffle: false
+  inner_mode: "per_event_strata"
+  inner_M: 10
+  random_state: 42
+
+model:
+  name: seresnet3d
+  num_classes: 1
+  in_channels: 18
+  kwargs:
+    chunk_size: 640
+    nperseg: 64
+    n_fft: 256
+    overlap: 0.5
+    log_power: false
+    normalize_input: true    # paper Eq. 3
+    stage_channels: [32, 32, 64, 64]
+    head_channels: 128
+    fc_hidden: 64
+    bottleneck_ratio: 0.5
+    se_reduction: 16
+    dropout: 0.1
+    negative_slope: 0.01
+
+loss:
+  name: focal              # paper: focal loss for class imbalance
+  kwargs:
+    gamma: 2.0
+    alpha: 0.25
+    # `alpha` weights the positive class. The paper reaches for focal loss to
+    # counter preictal scarcity, but `dataloader_type: undersample` already
+    # balances every epoch here, so alpha=0.25 ends up down-weighting positives
+    # instead of lifting them. Use `alpha: 0.5` for neutral weighting, or switch
+    # the loader to `torch` to reproduce the paper's imbalanced batches.
+
+optim:
+  name: adamw              # paper: "Adam with weight decay"
+  lr: 0.003
+  weight_decay: 0.00003
+  kwargs: {}
+
+sched:
+  name: cosine_warm_restarts
+  step: epoch
+  kwargs:
+    T_0: 10
+    T_mult: 2
+    eta_min: 0.0003

@@ -162,5 +162,17 @@ conda run -n torch-gpu seizure-pred train --config configs/studies/study003.yaml
 
 ---
 
+## Model comparison
+
+Base configs for the models added to the zoo live in `configs/models/`, one file
+per model. They inherit `configs/studies/study003.yaml` (same subject, same
+nested CV, same `monitor: auc`) and change only the transforms the model needs
+and the training recipe its paper specifies —
+see [Model zoo → Example configs](models.md#example-configs) for the per-model
+deltas and for why `wavelet_filterbank` is not used with them.
+
+The left-hand columns come from `seizure-pred benchmark`, the right-hand ones
+from the nested-CV run of the corresponding config.
+
 | Configuration | Params | FLOPs | Latency (ms) | GPU Memory (MB) | AUC | Sensitivity | FPR/h | Notes |
 |---------|-------:|------:|-------------:|----------------:|----:|------------:|------:|------|

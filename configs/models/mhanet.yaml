@@ -1,0 +1,77 @@
+# MHANet (Li et al., IJCAI 2025) on CHB-MIT prediction windows.
+#
+# Requires `einops`.
+#
+# Baseline: configs/studies/study003.yaml. Deltas:
+#   - offline_transforms drops `wavelet_filterbank`; MHANet's global attention
+#     runs over real time steps of the raw `(B, C, T)` window.
+#   - `chunk_size` MUST equal the window length (640): MHANet's positional and
+#     multi-scale temporal branches are sized statically from it.
+#   - `num_heads` must divide the channel count. The paper uses 16 heads on 64
+#     electrodes; 18 CHB-MIT channels admit at most 9.
+#
+# Training recipe: unchanged from study003 — the MHANet paper targets auditory
+# attention decoding and is not in `papers/` (only `papers/mhanet.py`), so there
+# is no paper-specified loss/optimizer for this task.
+
+task: prediction
+seed: 42
+device: cuda
+epochs: 50
+amp: true
+grad_clip_norm: 1.0
+log_every: 10
+save_dir: runs
+run_name: mhanet
+
+data:
+  name: chbmit_npz
+  dataset_dir: data/BIDS_CHB-MIT
+  subject_id: "01"
+  task: prediction
+  batch_size: 32
+  num_workers: 4
+  use_uint16: false
+  dataloader_type: "undersample"
+  suffix: _fd_5s_prex5
+  kwargs:
+    offline_transforms: ["robust_norm"]
+
+monitor: auc
+monitor_mode: max
+
+cv:
+  outer_method: "LOO"
+  outer_shuffle: false
+  outer_n_fold: 8
+  outer_mode: "split"
+  outer_M: 10
+  inner_method: "KFold"
+  inner_n_fold: 5
+  inner_shuffle: false
+  inner_mode: "per_event_strata"
+  inner_M: 10
+  random_state: 42
+
+model:
+  name: mhanet
+  num_classes: 1
+  in_channels: 18
+  kwargs:
+    chunk_size: 640        # must equal the window length
+    num_heads: 9           # largest divisor of 18 that is <= the paper's 16
+    bias: false
+
+loss:
+  name: bce_logits
+  kwargs: {}
+
+optim:
+  name: adamw
+  lr: 0.0001
+  weight_decay: 0.01
+  kwargs: {}
+
+sched:
+  name: null
+  kwargs: {}

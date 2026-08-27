@@ -215,7 +215,7 @@ Model builders consume `ModelConfig` and register under `MODELS`.
 
 Rebuilt from papers that publish no reference code; inferred choices are listed in each module docstring.
 
-- `fapex`: fractional neural frame operator + amplitude/phase state-space encoding + linear attention (`patch_size`, `d_model`, `d_state`, `depth`)
+- `fapex`: fractional neural frame operator + amplitude/phase state-space encoding + linear attention (`patch_size`, `d_model`, `d_state`, `depth`, `frnfo_per_layer`); defaults are the paper's FAPEX-Small
 - `md_rescapsnet`: CSP → STFT → SE-SA ResNet → capsule routing; reads `sfreq`, accepts `csp_filters`, pairs with the `capsule_margin` loss
 - `seizurenet_kan`: PLV graph + KAN-enhanced GCN (`hidden`, `grid_size`, `spline_order`); torch-only
 - `seresnet3d`: channel-stacked STFT volume + 3D SE residual modules (`nperseg`, `n_fft`, `stage_channels`); pairs with `focal`
@@ -233,6 +233,8 @@ The exact constructor parameters are documented inline in each builder module. T
 - `preictal_weighted`: `base_loss="bce_logits"|"focal"`, `max_weight=5.0`
 - `mil_bce_logits`: `aggregation="max"|"mean"|"logsumexp"`, optional `pos_weight`
 - `mil_confident_loss`: MIL loss for instance-level class logits
+- `capsule_margin`: `m_pos=0.9`, `m_neg=0.1`, `lambda_neg=0.5`; margin loss on
+  capsule norms, pairs with `md_rescapsnet`
 
 ## Optimizers
 
@@ -244,6 +246,8 @@ The exact constructor parameters are documented inline in each builder module. T
 
 - `step`: `step_size=10`, `gamma=0.1`
 - `cosine`: `T_max`, `eta_min=0.0`
+- `exponential`: `gamma=0.95`
+- `cosine_warm_restarts`: `T_0=10`, `T_mult=1`, `eta_min=0.0`
 - `onecycle`: `max_lr`, `epochs`, `steps_per_epoch`, plus standard OneCycleLR knobs
 
 ## Evaluators and postprocessing
@@ -254,6 +258,18 @@ The exact constructor parameters are documented inline in each builder module. T
 - Calibration (`seizure_pred.inference.calibration`): `percentile`, `beta`,
   `isotonic`, `temperature` + `calibrate_ensemble` (analysis-time, fit-on-val)
 
+## Callbacks
+
+Listed in `TrainConfig.callbacks` as `{name, kwargs}` entries and rebuilt per fold.
+
+- `early_stopping`: `monitor="val_loss"`, `mode="min"|"max"`, `patience=10`,
+  `min_delta=0.0`. `monitor` accepts either the bare metric name the trainer puts
+  in `state["val_metrics"]` (`auc`, `f1`, `loss`) or the `val_`-prefixed spelling
+  from `history.jsonl` (`val_auc`). Sets `state["stop"]`, which the trainer loop
+  checks at the end of each epoch.
+- `lr_monitor`: records the learning rate at epoch end
+- `custom_metrics`: example callback deriving extra metrics from `state["val_out"]`
+
 ## Benchmarking & XAI
 
 - `seizure_pred.experiments.benchmark`: params, FLOPs (`thop`), CPU/GPU latency,
@@ -262,6 +278,13 @@ The exact constructor parameters are documented inline in each builder module. T
   (optional `captum`; see [XAI](xai.md)).
 
 ## Examples
+
+### Ready-made configs
+
+- `configs/studies/study00{1,2,3}.yaml`: the nested-CV study configs (see [Studies](studies.md))
+- `configs/models/*.yaml`: one runnable config per recently added model, each with
+  the loss/optimizer/schedule its paper specifies (see [Model zoo](models.md#example-configs))
+- `examples/config_*.yaml`: minimal single-split, MIL, and synthetic configs
 
 ### Synthetic quickstart
 

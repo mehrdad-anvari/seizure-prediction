@@ -1,0 +1,92 @@
+# SeizureNet-KAN (Ben Atitallah et al., J. Eng. Sci. Technol. Rev. 2026) on CHB-MIT.
+#
+# Reconstruction from the paper text (no reference code published) — see the
+# module docstring in src/seizure_pred/models/seizurenet_kan.py.
+#
+# Baseline: configs/studies/study003.yaml. Deltas:
+#   - offline_transforms drops `wavelet_filterbank`: the model builds its PLV
+#     graph from the analytic phase of the raw window, so a time axis made of
+#     concatenated dyadic sub-bands would produce meaningless phase locking.
+#     `robust_norm` stays — the per-channel node statistics are amplitude-based
+#     (PLV itself is amplitude-invariant, so it is unaffected either way).
+#   - `in_channels` / `sfreq` are omitted on purpose: the graph is built from the
+#     input shape at run time, so this model needs neither.
+#   - `amp: false` — the Hilbert transform behind PLV is an FFT, kept in fp32.
+#
+# Training recipe from the paper (Sec. 4.2): Adam, batch size 64, fine-tuning
+# learning rate 1e-4 (the 0.01 rate belongs to the self-supervised pre-training
+# stage, which this config does not run), 20% dropout, and B-splines of degree
+# k = 3 on a grid of size 20. Not stated by the paper: weight decay.
+#
+# The paper trains for 1000 epochs. Nested CV here fits 8 outer x 5 inner = 40
+# models, so `epochs` is 200; raise it to 1000 to follow the paper exactly.
+#
+# Self-supervised pre-training (paper Sec. 4.3) is not wired into the CLI. The
+# pieces exist on the model: `model.node_embeddings(x, node_mask=...)` and
+# `model.decoder(z)` reconstruct masked node features.
+
+task: prediction
+seed: 42
+device: cuda
+epochs: 200
+amp: false
+grad_clip_norm: 1.0
+log_every: 10
+save_dir: runs
+run_name: seizurenet_kan
+
+data:
+  name: chbmit_npz
+  dataset_dir: data/BIDS_CHB-MIT
+  subject_id: "01"
+  task: prediction
+  batch_size: 64
+  num_workers: 4
+  use_uint16: false
+  dataloader_type: "undersample"
+  suffix: _fd_5s_prex5
+  kwargs:
+    offline_transforms: ["robust_norm"]
+
+monitor: auc
+monitor_mode: max
+
+cv:
+  outer_method: "LOO"
+  outer_shuffle: false
+  outer_n_fold: 8
+  outer_mode: "split"
+  outer_M: 10
+  inner_method: "KFold"
+  inner_n_fold: 5
+  inner_shuffle: false
+  inner_mode: "per_event_strata"
+  inner_M: 10
+  random_state: 42
+
+model:
+  name: seizurenet_kan
+  num_classes: 1
+  kwargs:
+    node_features: 5
+    hidden: 64
+    num_layers: 2
+    grid_size: 20          # paper: B-spline grid size G = 20
+    spline_order: 3        # paper: B-spline degree k = 3
+    dropout: 0.2           # paper: 20%
+    threshold_plv: true    # paper Eq. 10 median+std edge threshold
+    readout_layers: 2
+
+loss:
+  name: bce_logits
+  kwargs: {}
+
+optim:
+  name: adam               # paper: Adam
+  lr: 0.0001               # paper: fine-tuning learning rate
+  weight_decay: 0.0
+  kwargs: {}
+
+sched:
+  name: null
+  kwargs: {}

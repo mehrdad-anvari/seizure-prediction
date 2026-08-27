@@ -1,0 +1,123 @@
+# FAPEX (NeurIPS 2025) on CHB-MIT — fractional neural frame operator with
+# amplitude/phase state-space encoding.
+#
+# Reconstruction from the paper text (no reference code published) — see the
+# module docstring in src/seizure_pred/models/fapex.py.
+#
+# The training recipe comes from Appendix H of the supplementary
+# (papers/supplementaries/fapex_supplementaries.pdf, extracted to
+# papers/extracted/fapex_supplementaries.txt):
+#   - H.2: FAPEX-Small is 4 layers with hidden dimension 128 and two consecutive
+#     FrNFOs per layer, which is what the `model.kwargs` below build.
+#     FAPEX-Base is `depth: 6`, `d_model: 256`.
+#   - H.5: AdamW for every model, beta1 = 0.9, beta2 = 0.999 (the repo default);
+#     50 total epochs with an early-stopping patience of 5; no LR schedule is
+#     mentioned, hence `sched.name: null`.
+#   - H.4: the authors grid-search rather than publish per-dataset optima, so
+#     `lr`, `weight_decay`, `dropout` and `batch_size` below are each a value
+#     from their search set — lr from {1e-2, 5e-3, 1e-3, 5e-4, 1e-4, 5e-5},
+#     weight decay from {1e-3, 5e-4, 1e-4, 5e-5, 1e-5}, dropout from
+#     {0.05, 0.1, 0.2}, batch size from {16, 24, 32, 48}.
+#
+# Appendix H never states the loss function, `patch_size` or `d_state`; those
+# stay this repo's choice. Two things it does state are not implemented here:
+# an EMA of the weights with decay 0.995, and the per-forward-pass augmentation
+# suite of F.5 (temporal flip/mask, frequency mask, channel mask, jitter).
+#
+# Baseline: configs/studies/study003.yaml. Deltas:
+#   - offline_transforms drops `wavelet_filterbank`: FAPEX's own fractional
+#     Fourier front-end is the model's time-frequency stage, and it needs real
+#     time samples rather than concatenated dyadic sub-bands.
+#   - `in_channels` / `sfreq` are omitted on purpose — FAPEX patches whatever
+#     `(B, C, T)` it is given and never reads the sampling rate.
+#   - `amp: false` — the DFrFT is a complex chirp-FFT-chirp; fp16 autocast over
+#     complex tensors is the first thing to break here.
+#   - an `early_stopping` callback, for the patience of 5 that H.5 specifies.
+#
+# Two protocol differences worth stating. FAPEX is a cross-subject model and the
+# paper trains on held-out-subject splits; this config is single-subject like the
+# rest of the studies, so its numbers are not comparable to the paper's. The
+# paper also preprocesses to 512 Hz with a 0.1–200 Hz band-pass, ASR and ICA,
+# where these sessions are 128 Hz and 0.5–50 Hz — so the fractional filterbank
+# here sees a quarter of the bandwidth the authors gave it.
+#
+# MEMORY. The APCE scan holds `(batch * channels, patches, d_inner, d_state)`
+# tensors for the backward pass — 32 * 18 * 20 * 128 * 16 * 4 B ≈ 94 MB each, two
+# per direction, two directions per SSM, two SSMs per APCE, two APCEs per layer,
+# four layers: ≈6 GB of those alone, and the scan keeps a per-patch state on top.
+# Expect this config to want ~10 GB; Appendix H.1 used 4x A100 40 GB. If it will
+# not fit, drop `batch_size` to 16 (also inside H.4's grid) before `d_model`.
+
+task: prediction
+seed: 42
+device: cuda
+epochs: 50                 # H.5
+amp: false
+grad_clip_norm: 1.0
+log_every: 10
+save_dir: runs
+run_name: fapex
+
+data:
+  name: chbmit_npz
+  dataset_dir: data/BIDS_CHB-MIT
+  subject_id: "01"
+  task: prediction
+  batch_size: 32           # H.4 searched {16, 24, 32, 48}
+  num_workers: 4
+  use_uint16: false
+  dataloader_type: "undersample"
+  suffix: _fd_5s_prex5
+  kwargs:
+    offline_transforms: ["robust_norm"]
+
+monitor: auc
+monitor_mode: max
+
+cv:
+  outer_method: "LOO"
+  outer_shuffle: false
+  outer_n_fold: 8
+  outer_mode: "split"
+  outer_M: 10
+  inner_method: "KFold"
+  inner_n_fold: 5
+  inner_shuffle: false
+  inner_mode: "per_event_strata"
+  inner_M: 10
+  random_state: 42
+
+model:
+  name: fapex
+  num_classes: 1
+  kwargs:
+    patch_size: 32         # not in the paper; 640 / 32 = 20 patches per channel
+    d_model: 128           # H.2, FAPEX-Small (FAPEX-Base: 256)
+    d_inner: null          # defaults to d_model
+    d_state: 16            # not in the paper
+    depth: 4               # H.2, FAPEX-Small (FAPEX-Base: 6)
+    frnfo_per_layer: 2     # H.2, "two consecutive [...] FrNFOs" per layer
+    num_sinusoids: 4
+    hermite_order: 4
+    dropout: 0.1           # H.4 searched {0.05, 0.1, 0.2}
+
+loss:
+  name: bce_logits         # not stated by the paper
+  kwargs: {}
+
+optim:
+  name: adamw              # H.5, with the default betas (0.9, 0.999)
+  lr: 0.0001               # H.4 searched {1e-2, 5e-3, 1e-3, 5e-4, 1e-4, 5e-5}
+  weight_decay: 0.0001     # H.4 searched {1e-3, 5e-4, 1e-4, 5e-5, 1e-5}
+  kwargs: {}
+
+sched:
+  name: null               # H.5 mentions no LR schedule
+  kwargs: {}
+
+callbacks:
+  - name: early_stopping   # H.5: 50 epochs, patience 5
+    kwargs:
+      monitor: val_auc
+      mode: max
+      patience: 5

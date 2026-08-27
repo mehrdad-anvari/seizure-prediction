@@ -22,14 +22,26 @@ The three components and the equations they implement:
    electrodes, gated by a depthwise 3x3 convolution over the (channel, patch)
    plane, modelling inter-electrode dependencies.
 
-Because the paper's appendix (implementation details, App. H) is not part of the
-published main PDF, the following are **inferred** and exposed as constructor
-arguments rather than taken from the authors:
+Sizes come from App. H.2 of the supplementary
+(``papers/supplementaries/fapex_supplementaries.pdf``, extracted to
+``papers/extracted/fapex_supplementaries.txt``): FAPEX-Small is 4 layers with a
+hidden dimension of 128 -- the defaults here -- and FAPEX-Base is 6 layers with
+256. "Each layer in both variants includes two consecutive [...] (FrNFOs)",
+which is ``frnfo_per_layer=2`` below; that also settles Fig. 2, whose PSD panels
+run "Layer 1 ... Layer 12" -- 12 is FAPEX-Base's 6 layers x 2 FrNFOs, not a
+12-layer backbone.
 
-- ``d_model``, ``d_state``, ``d_inner``, ``depth``, ``patch_size``, ``hermite_order``
-  and ``num_sinusoids``. The interpretability figure (Fig. 2) reports FrNFO filter
-  responses for "Layer 1 ... Layer 12", so the authors' backbone is deeper than
-  the default ``depth=4`` used here to stay affordable on 640-sample windows.
+The following remain **inferred** and are exposed as constructor arguments
+rather than taken from the authors:
+
+- ``patch_size``, ``d_state``, ``d_inner``, ``hermite_order`` and
+  ``num_sinusoids`` carry no published value in either the paper or the
+  supplementary. ``patch_size=32`` splits a 640-sample window into 20 patches.
+- FrNFO emits an ``(amplitude, phase)`` pair, so two of them can only be chained
+  through something that folds the pair back into one real stream. APCE is what
+  does that, so it is repeated alongside each FrNFO and the single SCA closes the
+  layer. The paper describes only one FrNFO/APCE/SCA ordering (Fig. 1) and never
+  says where the second FrNFO sits.
 - The fractional transform is discretised as chirp-multiply -> FFT ->
   chirp-multiply on a symmetric grid (exact at theta = pi/2, i.e. the ordinary
   DFT). The paper does not state its discretisation. ``frft`` is a standalone
@@ -45,6 +57,10 @@ arguments rather than taken from the authors:
 Input is ``(B, C, T)`` raw EEG. Nothing in the model is tied to a fixed channel
 count -- the patch embedding is shared across channels and SCA pools over them --
 which is the paper's claim of montage independence.
+
+The training recipe (App. H.4/H.5: AdamW, 50 epochs with patience 5, EMA 0.995,
+and the grids the authors searched) is in ``configs/models/fapex.yaml``. The loss
+function is stated in neither the paper nor the supplementary.
 """
 
 import math
@@ -395,19 +411,44 @@ class SpatialCorrelationAggregation(nn.Module):
 
 
 class FAPEXBlock(nn.Module):
-    """One backbone layer: FrNFO -> APCE -> SCA, with a residual around SCA."""
+    """One backbone layer: ``frnfo_per_layer`` x (FrNFO -> APCE), then SCA with a residual.
+
+    App. H.2 states that "each layer in both variants includes two consecutive
+    [...] (FrNFOs)", hence the default of two. FrNFO returns an
+    ``(amplitude, phase)`` pair, so chaining two of them requires something that
+    folds the pair back into a single real stream in between -- APCE is repeated
+    with each FrNFO, and the single SCA closes the layer.
+
+    Args:
+        d_model (int): feature width.
+        d_inner (int): latent SSM width.
+        d_state (int): number of SSM states.
+        num_sinusoids (int): sinusoidal terms in the implicit window.
+        hermite_order (int): Hermite order in the implicit window.
+        frnfo_per_layer (int): consecutive FrNFO/APCE pairs. (default: :obj:`2`)
+    """
 
     def __init__(self, d_model: int, d_inner: int, d_state: int,
-                 num_sinusoids: int, hermite_order: int):
+                 num_sinusoids: int, hermite_order: int,
+                 frnfo_per_layer: int = 2):
         super().__init__()
-        self.frnfo = FrNFO(d_model, num_sinusoids, hermite_order)
-        self.apce = APCE(d_model, d_inner, d_state)
+        if frnfo_per_layer < 1:
+            raise ValueError(f"frnfo_per_layer must be >= 1, got {frnfo_per_layer}")
+        self.frnfo = nn.ModuleList(
+            FrNFO(d_model, num_sinusoids, hermite_order)
+            for _ in range(frnfo_per_layer)
+        )
+        self.apce = nn.ModuleList(
+            APCE(d_model, d_inner, d_state) for _ in range(frnfo_per_layer)
+        )
         self.sca = SpatialCorrelationAggregation(d_model)
         self.norm = RMSNorm(d_model)
 
     def forward(self, x: Tensor) -> Tensor:
-        amplitude, phase = self.frnfo(x)
-        mixed = self.apce(amplitude, phase)
+        mixed = x
+        for frnfo, apce in zip(self.frnfo, self.apce):
+            amplitude, phase = frnfo(mixed)
+            mixed = apce(amplitude, phase)
         return self.norm(mixed + self.sca(mixed))
 
 
@@ -418,8 +459,10 @@ class FAPEX(nn.Module):
     linear attention across electrodes.
 
     Reconstructed from the paper text; see the module docstring for the list of
-    inferred choices. The model is channel-count agnostic, so the same weights
-    accept any montage.
+    inferred choices. Defaults are FAPEX-Small (App. H.2: 4 layers, hidden
+    dimension 128, two consecutive FrNFOs per layer); FAPEX-Base is
+    ``depth=6, d_model=256``. The model is channel-count agnostic, so the same
+    weights accept any montage.
 
     .. code-block:: yaml
 
@@ -428,36 +471,41 @@ class FAPEX(nn.Module):
           num_classes: 1
           kwargs:
             patch_size: 32     # tau; T must be divisible by it
-            d_model: 64
+            d_model: 128
             depth: 4
+            frnfo_per_layer: 2
 
     .. code-block:: python
 
-        model = FAPEX(num_classes=1, patch_size=32, d_model=64, depth=2)
+        model = FAPEX(num_classes=1, patch_size=32, d_model=128, depth=4)
         logits = model(torch.randn(4, 18, 640))  # (4, 1)
 
     Args:
         num_classes (int): output logits; use :obj:`1` for a single binary logit. (default: :obj:`2`)
         patch_size (int): patch length :math:`\tau` in samples. (default: :obj:`32`)
-        d_model (int): embedding width :math:`d_{model}`. (default: :obj:`64`)
+        d_model (int): embedding width :math:`d_{model}`; 128 for FAPEX-Small,
+            256 for FAPEX-Base. (default: :obj:`128`)
         d_inner (int): latent SSM width :math:`E`; defaults to :obj:`d_model`. (default: :obj:`None`)
         d_state (int): number of SSM states :math:`S`. (default: :obj:`16`)
-        depth (int): number of FrNFO/APCE/SCA layers. (default: :obj:`4`)
+        depth (int): number of backbone layers; 4 for FAPEX-Small, 6 for
+            FAPEX-Base. (default: :obj:`4`)
         num_sinusoids (int): sinusoidal terms :math:`M` in the implicit window. (default: :obj:`4`)
         hermite_order (int): Hermite order :math:`K` in the implicit window. (default: :obj:`4`)
         dropout (float): dropout before the classifier. (default: :obj:`0.1`)
+        frnfo_per_layer (int): consecutive FrNFO/APCE pairs inside each layer. (default: :obj:`2`)
     '''
 
     def __init__(self,
                  num_classes: int = 2,
                  patch_size: int = 32,
-                 d_model: int = 64,
+                 d_model: int = 128,
                  d_inner: Optional[int] = None,
                  d_state: int = 16,
                  depth: int = 4,
                  num_sinusoids: int = 4,
                  hermite_order: int = 4,
-                 dropout: float = 0.1):
+                 dropout: float = 0.1,
+                 frnfo_per_layer: int = 2):
         super().__init__()
         if patch_size < 1:
             raise ValueError(f"patch_size must be >= 1, got {patch_size}")
@@ -474,7 +522,8 @@ class FAPEX(nn.Module):
         self.patch_embed = nn.Linear(patch_size, d_model)
 
         self.blocks = nn.ModuleList([
-            FAPEXBlock(d_model, self.d_inner, d_state, num_sinusoids, hermite_order)
+            FAPEXBlock(d_model, self.d_inner, d_state, num_sinusoids, hermite_order,
+                       frnfo_per_layer=frnfo_per_layer)
             for _ in range(depth)
         ])
 
@@ -528,11 +577,12 @@ def build_fapex(cfg: ModelConfig) -> nn.Module:
     return FAPEX(
         num_classes=int(getattr(cfg, "num_classes", 2)),
         patch_size=int(kw.get("patch_size", 32)),
-        d_model=int(kw.get("d_model", 64)),
+        d_model=int(kw.get("d_model", 128)),
         d_inner=int(kw["d_inner"]) if kw.get("d_inner") else None,
         d_state=int(kw.get("d_state", 16)),
         depth=int(kw.get("depth", 4)),
         num_sinusoids=int(kw.get("num_sinusoids", 4)),
         hermite_order=int(kw.get("hermite_order", 4)),
         dropout=float(kw.get("dropout", 0.1)),
+        frnfo_per_layer=int(kw.get("frnfo_per_layer", 2)),
     )
