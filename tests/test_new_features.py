@@ -53,6 +53,26 @@ def test_prediction_metrics_ignore_augmented_segments():
         os.unlink(path)
 
 
+def test_validation_subset_excludes_augmented_segments():
+    from seizure_pred.data.base_dataset import BaseDataset
+    from seizure_pred.data.splits import original_only
+
+    dataset = BaseDataset()
+    dataset.X = np.zeros((3, 1, 2), dtype=np.float32)
+    dataset.y = np.array([0, 0, 1], dtype=np.int64)
+    dataset.group_ids = np.array(["a", "a", "b"])
+    dataset.metadata = [
+        {"augmented": 0, "id": "original"},
+        {"augmented": 1, "id": "augmented"},
+        {"id": "legacy"},
+    ]
+
+    filtered = original_only(dataset)
+
+    assert len(filtered) == 2
+    assert [meta["id"] for meta in filtered.metadata] == ["original", "legacy"]
+
+
 def test_auc_known_value():
     from seizure_pred.training.engine.metrics import binary_auc
 

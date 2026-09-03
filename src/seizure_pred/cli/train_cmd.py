@@ -18,6 +18,7 @@ from seizure_pred.training.engine.artifacts import ArtifactWriter
 from seizure_pred.training.engine.trainer import Trainer
 from seizure_pred.training.engine.trainer_mil import TrainerMIL
 from seizure_pred.training.engine.metrics import original_segment_mask
+from seizure_pred.data.splits import original_only
 from seizure_pred.core.logging import setup_logging
 
 
@@ -128,6 +129,7 @@ def run_train(args: argparse.Namespace) -> None:
 
     try:
         for split_index, (train_set, val_set) in enumerate(splits):
+            val_set = original_only(val_set)
             # Determinism / seeding
             seed_everything(getattr(cfg, "determinism", None), seed=cfg.seed)
 
@@ -442,7 +444,7 @@ def run_nested_cv(cfg: TrainConfig, dataset: Any, stamp: str, args: argparse.Nam
                 
                 # Build loaders
                 train_loader = build_loader(dl_name, train_set, cfg, shuffle=True)
-                val_loader = build_loader("torch", val_set, cfg, shuffle=False)
+                val_loader = build_loader("torch", original_only(val_set), cfg, shuffle=False)
                 test_loader = build_loader("torch", test_set, cfg, shuffle=False)
                 
                 # Build components

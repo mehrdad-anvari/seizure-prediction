@@ -50,6 +50,7 @@ def build_suffix(
     segment_sec,
     preictal_factor=1,
     seizure_factor=1,
+    interictal_factor=1,
     ica_applied=False,
     filter_applied=False,
     downsample_applied=False,
@@ -79,6 +80,8 @@ def build_suffix(
         parts.append(f"szx{seizure_factor}")
     if preictal_factor not in (None, 1):
         parts.append(f"prex{preictal_factor}")
+    if interictal_factor not in (None, 1):
+        parts.append(f"intx{interictal_factor}")
 
     if not parts:
         return ""  # no suffix at all
@@ -104,6 +107,7 @@ def process_chbmit_bids_dataset(
     subj_nums: Optional[List[int]] = None,
     preictal_oversample_factor: int = 1,
     seizure_oversample_factor: int = 1,
+    interictal_oversample_factor: int = 1,
     preictal_minutes: int = 15,
     post_buffer_minutes: int = 60,
     pre_buffer_minutes: int = 45,
@@ -162,6 +166,9 @@ def process_chbmit_bids_dataset(
     seizure_oversample_factor : int, optional
         Oversampling factor for seizure segments.
         Default is 1 (no oversampling).
+    interictal_oversample_factor : int, optional
+        Oversampling factor for interictal segments.
+        Default is 1 (no oversampling).
     preictal_minutes : int, optional
         Duration of preictal period in minutes.
         Default is 15 minutes.
@@ -200,6 +207,7 @@ def process_chbmit_bids_dataset(
     print(f"  Subjects to process: {subj_nums if subj_nums is not None else 'All'}")
     print(f"  Preictal oversample factor: {preictal_oversample_factor}")
     print(f"  Seizure oversample factor: {seizure_oversample_factor}")
+    print(f"  Interictal oversample factor: {interictal_oversample_factor}")
 
     plt = _require_plt() if (plot or plot_psd) else None
 
@@ -267,9 +275,10 @@ def process_chbmit_bids_dataset(
 
         X, y, meta_df, event_stats, global_id, ann_counter = extract_segments_with_labels_bids(
             raw_all,
-            segment_sec=5,
+            segment_sec=segment_sec,
             preictal_oversample_factor=preictal_oversample_factor,
             seizure_oversample_factor=seizure_oversample_factor,
+            interictal_oversample_factor=interictal_oversample_factor,
             start_global_id=global_id,
             initial_ann_counter=ann_counter
         )
@@ -324,6 +333,7 @@ def process_chbmit_bids_dataset(
             segment_sec=segment_sec,
             preictal_factor=preictal_oversample_factor,
             seizure_factor=seizure_oversample_factor,
+            interictal_factor=interictal_oversample_factor,
             ica_applied=apply_ica,
             filter_applied=apply_filter,
             downsample_applied=apply_downsampling,
@@ -370,6 +380,7 @@ def process_chbmit_bids_dataset(
             f.write(f"segment_sec: {segment_sec}\n")
             f.write(f"preictal_oversample_factor: {preictal_oversample_factor}\n")
             f.write(f"seizure_oversample_factor: {seizure_oversample_factor}\n")
+            f.write(f"interictal_oversample_factor: {interictal_oversample_factor}\n")
             f.write(f"preictal_minutes: {preictal_minutes}\n")
             f.write(f"post_buffer_minutes: {post_buffer_minutes}\n")
             f.write(f"pre_buffer_minutes: {pre_buffer_minutes}\n")
@@ -631,6 +642,13 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--interictal_oversample_factor",
+        type=int,
+        default=1,
+        help="Oversampling factor for interictal segments",
+    )
+
+    parser.add_argument(
         "--preictal_minutes",
         type=int,
         default=15,
@@ -681,6 +699,7 @@ if __name__ == "__main__":
         subj_nums=args.subjects,
         preictal_oversample_factor=args.preictal_oversample_factor,
         seizure_oversample_factor=args.seizure_oversample_factor,
+        interictal_oversample_factor=args.interictal_oversample_factor,
         preictal_minutes=args.preictal_minutes,
         post_buffer_minutes=args.post_buffer_minutes,
         pre_buffer_minutes=args.pre_buffer_minutes,

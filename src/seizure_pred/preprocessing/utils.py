@@ -450,13 +450,14 @@ def extract_segments_with_labels_bids(
     keep_labels: Set[str] = {"seizure", "preictal", "interictal", "post_buffer", "pre_buffer"},
     preictal_oversample_factor: float = 1.0,
     seizure_oversample_factor: float = 1.0,
+    interictal_oversample_factor: float = 1.0,
     start_global_id: int = None,
     initial_ann_counter: int = None
 ):
     """
     Segment an annotated MNE Raw object into fixed-length EEG epochs, produce
     per-epoch metadata, and optionally oversample specific annotation types
-    (preictal or seizure) using internal overlap.
+    (preictal, seizure, or interictal) using internal overlap.
 
     Parameters
     ----------
@@ -471,6 +472,8 @@ def extract_segments_with_labels_bids(
         Oversampling factor for 'preictal' segments. Default = 1.0 (no oversampling).
     seizure_oversample_factor : float
         Oversampling factor for 'seizure' segments. Default = 1.0 (no oversampling).
+    interictal_oversample_factor : float
+        Oversampling factor for 'interictal' segments. Default = 1.0 (no oversampling).
 
     Returns
     -------
@@ -492,6 +495,7 @@ def extract_segments_with_labels_bids(
 
     validate_oversample_factor(preictal_oversample_factor, "preictal oversample factor")
     validate_oversample_factor(seizure_oversample_factor, "seizure oversample factor")
+    validate_oversample_factor(interictal_oversample_factor, "interictal oversample factor")
 
     import numpy as np
     import pandas as pd
@@ -522,6 +526,9 @@ def extract_segments_with_labels_bids(
             internal_overlap = min(segment_sec * overlap_ratio, segment_sec - 0.01)
         elif desc.lower() == "seizure" and seizure_oversample_factor > 1.0:
             overlap_ratio = 1.0 - 1.0 / seizure_oversample_factor
+            internal_overlap = min(segment_sec * overlap_ratio, segment_sec - 0.01)
+        elif desc.lower() == "interictal" and interictal_oversample_factor > 1.0:
+            overlap_ratio = 1.0 - 1.0 / interictal_oversample_factor
             internal_overlap = min(segment_sec * overlap_ratio, segment_sec - 0.01)
         else:
             internal_overlap = 0.0
@@ -558,6 +565,8 @@ def extract_segments_with_labels_bids(
             oversample_factor = preictal_oversample_factor
         elif desc.lower() == "seizure":
             oversample_factor = seizure_oversample_factor
+        elif desc.lower() == "interictal":
+            oversample_factor = interictal_oversample_factor
         else:
             oversample_factor = 1.0
 
@@ -614,6 +623,7 @@ def extract_segments_with_labels_bids(
             "duration_sec": float(duration),
             "n_segments": n_segs,
             "applied_overlap_sec": float(internal_overlap),
+            "applied_factor": float(oversample_factor),
         })
 
     # ----------------------------------------------------------------------

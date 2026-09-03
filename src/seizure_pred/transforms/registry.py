@@ -28,6 +28,7 @@ _SIGNAL: Dict[str, TransformSpec] = {
     # signal
     "instance_norm": TransformSpec("seizure_pred.transforms.signal.normalize", "InstanceNormTransform"),
     "robust_norm": TransformSpec("seizure_pred.transforms.signal.normalize", "RobustNormTransform"),
+    "instance_norm_fix_std": TransformSpec("seizure_pred.transforms.signal.normalize", "InstanceNormTransformFixStd"),
     "to_grid": TransformSpec("seizure_pred.transforms.signal.rearrange", "ToGrid"),
     "filterbank": TransformSpec("seizure_pred.transforms.signal.filterbank", "FilterBank", extra_hint="signal"),
     "wavelet_filterbank": TransformSpec(
