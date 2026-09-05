@@ -253,7 +253,7 @@ of every window the model sees: `IIR` runs the Butterworth filter once forward
 and `FIR` uses a minimum-phase design, both causal but phase-distorting. The new
 `IIR_zero_phase` and `FIR_zero_phase` options filter forward and backward,
 removing phase distortion while remaining non-causal within each window. This
-study keeps the EEGWaveNet protocol of `configs/studies/study006.yaml` fixed
+study keeps the EEGWaveNet protocol of `configs/studies/study005.yaml` fixed
 (subject `01`, `_fd_5s_prex5` segments, `robust_norm` + `wavelet_filterbank`,
 nested CV, `monitor: auc`) and changes only the filter design used to produce
 the training segments.
@@ -276,12 +276,12 @@ in the sensitivity / FPR/h trade-off.
 
 | Configuration | Filter Type | Filter Design |
 |---------------|-------------|---------------|
-| `EXP-006-A` | `IIR` | Butterworth band-pass, one-pass forward (causal) |
-| `EXP-006-B` | `FIR` | FIR (firwin), minimum phase (causal) |
-| `EXP-006-C` | `IIR_zero_phase` | Butterworth band-pass, forward-backward (zero phase) |
-| `EXP-006-D` | `FIR_zero_phase` | FIR (firwin), zero phase (non-causal) |
+| `EXP-005-A` | `IIR` | Butterworth band-pass, one-pass forward (causal) |
+| `EXP-005-B` | `FIR` | FIR (firwin), minimum phase (causal) |
+| `EXP-005-C` | `IIR_zero_phase` | Butterworth band-pass, forward-backward (zero phase) |
+| `EXP-005-D` | `FIR_zero_phase` | FIR (firwin), zero phase (non-causal) |
 
-The `EXP-006-A` segments are identical to the `_fd_5s_prex5` data used by
+The `EXP-005-A` segments are identical to the `_fd_5s_prex5` data used by
 STUDY-003 and STUDY-004 (both were preprocessed with `IIR`). Preprocess each
 variant before training it:
 
@@ -311,7 +311,7 @@ seizure-pred train --config configs/studies/study005.yaml --strict
 ### Results
 
 To be filled in after the runs. Each row is the `none,none,1,0.5` variant of the
-run's `runs/study_006/<stamp>/analysis/variant_summary.csv` - no calibration,
+run's `runs/study_005/<stamp>/analysis/variant_summary.csv` - no calibration,
 moving-average window 1, threshold 0.5.
 
 `TPR = Sensitivity`

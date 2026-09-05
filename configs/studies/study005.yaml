@@ -6,7 +6,7 @@ amp: true
 grad_clip_norm: 1.0
 log_every: 10
 save_dir: runs
-run_name: study_006
+run_name: study_005
 
 data:
   name: chbmit_npz
