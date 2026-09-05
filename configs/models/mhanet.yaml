@@ -75,3 +75,10 @@ optim:
 sched:
   name: null
   kwargs: {}
+
+callbacks:
+  - name: early_stopping   
+    kwargs:
+      monitor: val_auc
+      mode: max
+      patience: 5

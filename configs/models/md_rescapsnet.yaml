@@ -100,3 +100,10 @@ sched:
   step: epoch
   kwargs:
     gamma: 0.95            # decay rate is not stated in the paper
+
+callbacks:
+  - name: early_stopping   
+    kwargs:
+      monitor: val_auc
+      mode: max
+      patience: 5

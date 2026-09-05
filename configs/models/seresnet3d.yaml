@@ -108,3 +108,10 @@ sched:
     T_0: 10
     T_mult: 2
     eta_min: 0.0003
+
+callbacks:
+  - name: early_stopping   
+    kwargs:
+      monitor: val_auc
+      mode: max
+      patience: 5
