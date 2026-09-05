@@ -1,0 +1,65 @@
+task: prediction
+seed: 42
+device: cuda
+epochs: 50
+amp: true
+grad_clip_norm: 1.0
+log_every: 10
+save_dir: runs
+run_name: ce_stsenet
+
+data:
+  name: chbmit_npz
+  dataset_dir: data/BIDS_CHB-MIT
+  subject_id: "01"
+  task: prediction
+  batch_size: 32
+  num_workers: 4
+  use_uint16: false
+  dataloader_type: "undersample"
+  suffix: _fd_5s_prex5
+  kwargs:
+    offline_transforms: ["robust_norm"]
+
+monitor: auc
+monitor_mode: max
+
+cv:
+  outer_method: "LOO"
+  outer_shuffle: false
+  outer_n_fold: 8
+  outer_mode: "split"
+  outer_M: 10
+  inner_method: "KFold"
+  inner_n_fold: 5
+  inner_shuffle: false
+  inner_mode: "per_event_strata"
+  inner_M: 10
+  random_state: 42
+
+model:
+  name: ce_stsenet
+  num_classes: 1
+  in_channels: 18
+  kwargs: {}
+
+loss:
+  name: bce_logits
+  kwargs: {}
+
+optim:
+  name: adamw
+  lr: 0.0001
+  weight_decay: 0.01
+  kwargs: {}
+
+sched:
+  name: null
+  kwargs: {}
+
+callbacks:
+  - name: early_stopping   
+    kwargs:
+      monitor: val_auc
+      mode: max
+      patience: 5
