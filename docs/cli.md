@@ -15,7 +15,7 @@ Preprocess raw CHB-MIT BIDS EDF + events into per-session NPZ files.
 
 Common flags: `--dataset-dir`, `--subject` (`1,2,3` or `all`),
 `--save-uint16`, `--no-filter`/`--no-ica`/`--no-downsample`,
-`--filter-type {FIR,IIR}`, `--l-freq`, `--h-freq`, `--sfreq-new`,
+`--filter-type {IIR,FIR,IIR_zero_phase,FIR_zero_phase}`, `--l-freq`, `--h-freq`, `--sfreq-new`,
 `--downsample-method {polyphase,fft,resample}`, `--normalize {zscore,robust}`,
 `--preictal-minutes`, `--pre-buffer-minutes`, `--post-buffer-minutes`,
 `--segment-sec`, `--preictal-oversample-factor`, `--seizure-oversample-factor`,

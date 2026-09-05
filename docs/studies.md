@@ -8,7 +8,7 @@ For all studies we used these **Processing Options** unless otherwise mentioned:
 
 `save_uint16: False`
 `apply_filter: True`
-`filter_type: IRR`
+`filter_type: IIR`
 `l_freq: 0.5`
 `h_freq: 50.0`
 `apply_ica: False`
@@ -235,6 +235,90 @@ moving-average window 1, threshold 0.5.
 | `EXP-004-B`   | 0.8582 | 0.2602 | 1.0  | 100.05 | 6.07 | 7 h 19 min |
 | `EXP-004-C`   | 0.8555 | 0.3051 | 1.0  | 131.35 | 5.75 | 5 h 41 min |
 | `EXP-004-D`   | 0.8918 | 0.2769 | 0.625 |  21.91 | 2.45 | 2 h 58 min |
+
+---
+
+## STUDY-005: Effect of Bandpass Filter Type
+
+### Question
+
+> Does the bandpass filter design used during preprocessing (IIR vs FIR, causal
+> vs zero phase) affect seizure-prediction performance for EEGWaveNet?
+
+### Motivation
+
+All previous studies were preprocessed with a causal filter. The bandpass stage
+is the first transformation applied to the raw EEG and fixes the phase response
+of every window the model sees: `IIR` runs the Butterworth filter once forward
+and `FIR` uses a minimum-phase design, both causal but phase-distorting. The new
+`IIR_zero_phase` and `FIR_zero_phase` options filter forward and backward,
+removing phase distortion while remaining non-causal within each window. This
+study keeps the EEGWaveNet protocol of `configs/studies/study006.yaml` fixed
+(subject `01`, `_fd_5s_prex5` segments, `robust_norm` + `wavelet_filterbank`,
+nested CV, `monitor: auc`) and changes only the filter design used to produce
+the training segments.
+
+### Hypothesis
+
+Zero-phase filters preserve the original timing of transient EEG features,
+which may make preictal and interictal windows easier to separate; causal
+filters distort phase but match the assumptions of a real-time deployment in
+which future samples are unavailable. Because training and evaluation use
+complete recorded windows, zero-phase variants are expected to perform at least
+as well as their causal counterparts, with any differences showing up mainly
+in the sensitivity / FPR/h trade-off.
+
+### Base Configuration
+
+`configs/studies/study005.yaml`
+
+### Configurations
+
+| Configuration | Filter Type | Filter Design |
+|---------------|-------------|---------------|
+| `EXP-006-A` | `IIR` | Butterworth band-pass, one-pass forward (causal) |
+| `EXP-006-B` | `FIR` | FIR (firwin), minimum phase (causal) |
+| `EXP-006-C` | `IIR_zero_phase` | Butterworth band-pass, forward-backward (zero phase) |
+| `EXP-006-D` | `FIR_zero_phase` | FIR (firwin), zero phase (non-causal) |
+
+The `EXP-006-A` segments are identical to the `_fd_5s_prex5` data used by
+STUDY-003 and STUDY-004 (both were preprocessed with `IIR`). Preprocess each
+variant before training it:
+
+```text
+seizure-pred preprocess-chbmit --dataset-dir data/BIDS_CHB-MIT --subject 1 --no-ica --preictal-oversample-factor 5 --filter-type IIR
+seizure-pred preprocess-chbmit --dataset-dir data/BIDS_CHB-MIT --subject 1 --no-ica --preictal-oversample-factor 5 --filter-type FIR
+seizure-pred preprocess-chbmit --dataset-dir data/BIDS_CHB-MIT --subject 1 --no-ica --preictal-oversample-factor 5 --filter-type IIR_zero_phase
+seizure-pred preprocess-chbmit --dataset-dir data/BIDS_CHB-MIT --subject 1 --no-ica --preictal-oversample-factor 5 --filter-type FIR_zero_phase
+```
+
+The preprocessed file names do not encode the filter type
+(`processed_segments_fd_5s_prex5_*`, `processing_options_fd_5s_prex5.txt`, and
+`event_stats.csv` are shared between variants), so preprocess each variant right
+before its training run or into a separate dataset copy; a later run overwrites
+the previous one. Only the signal values differ between variants, so segment
+boundaries and counts are unchanged.
+
+### Run
+
+Run each configuration in the `torch-gpu` environment immediately after
+preprocessing its variant:
+
+```text
+seizure-pred train --config configs/studies/study005.yaml --strict
+```
+
+### Results
+
+To be filled in after the runs. Each row is the `none,none,1,0.5` variant of the
+run's `runs/study_006/<stamp>/analysis/variant_summary.csv` - no calibration,
+moving-average window 1, threshold 0.5.
+
+`TPR = Sensitivity`
+`FPR/h suppressed: Ignore positive predictions for 5 minutes after a detection`
+
+| Configuration | AUC    | F1     | TPR  | FPR/h  | FPR/h supp. | Training Time |
+|---------------|:------:|:------:|:----:|:------:|:------------:|:--------------:|
 
 ---
 

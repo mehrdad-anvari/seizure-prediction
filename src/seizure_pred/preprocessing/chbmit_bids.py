@@ -133,7 +133,9 @@ def process_chbmit_bids_dataset(
         If True, downsample the data to sfreq_new.
         Default is True.
     filter_type : str, optional
-        Type of bandpass filter to use ('IIR' or 'FIR').
+        Type of bandpass filter to use: 'IIR', 'FIR', 'IIR_zero_phase', or
+        'FIR_zero_phase'. The plain variants are the causal designs; the
+        '_zero_phase' variants apply the same designs with zero phase.
         Default is 'FIR'.
     l_freq : float, optional
         Low cutoff frequency for bandpass filter.
@@ -559,7 +561,8 @@ def parse_args():
         "--filter_type",
         type=str,
         default="FIR",
-        help="Type of bandpass filter to use (IIR or FIR)",
+        choices=["IIR", "FIR", "IIR_zero_phase", "FIR_zero_phase"],
+        help="Type of bandpass filter to use (IIR, FIR, IIR_zero_phase, FIR_zero_phase)",
     )
 
     parser.add_argument(
