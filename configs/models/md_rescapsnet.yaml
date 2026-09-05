@@ -1,0 +1,109 @@
+# MD-ResCapsNet (Bao et al., Biomed. Signal Process. Control 2026) on CHB-MIT.
+#
+# Reconstruction from the paper text (no reference code published) — see the
+# module docstring in src/seizure_pred/models/md_rescapsnet.py for what is
+# inferred.
+#
+# Baseline: configs/studies/study003.yaml. Deltas:
+#   - offline_transforms drops `wavelet_filterbank`: the model runs its own CSP
+#     projection and STFT on the raw window, and `concat_time` would hand both
+#     a signal whose time axis is a stack of dyadic sub-bands at a fictitious
+#     sampling rate. `robust_norm` is kept because CSP covariances and the
+#     BatchNorm-free stem are amplitude-sensitive.
+#   - `sfreq` is explicit: the STFT front-end truncates at `f_max` in Hz.
+#   - `amp: false` — the internal `torch.stft` is happier in fp32 and the win
+#     from autocast is small next to the routing iterations.
+#
+# Training recipe from the paper (Sec. 4.1): learning rate 0.002, batch size 16,
+# 100 epochs, exponentially decaying learning rate, 5-fold CV, and the margin
+# loss of Eq. 16. Not stated by the paper, so inferred here: the optimizer
+# (`adam`), the decay rate `gamma`, and the numeric margin loss constants
+# (`m_pos` / `m_neg` / `lambda_neg` keep the Sabour et al. values).
+#
+# CSP: `csp_filters` cannot be written in YAML. To use the paper's fitted
+# projection instead of the identity, call
+# `seizure_pred.models.md_rescapsnet.compute_csp_filters(preictal, interictal)`
+# on the training split and pass the result to `MD_ResCapsNet(csp_filters=...)`.
+
+task: prediction
+seed: 42
+device: cuda
+epochs: 100
+amp: false
+grad_clip_norm: 1.0
+log_every: 10
+save_dir: runs
+run_name: md_rescapsnet
+
+data:
+  name: chbmit_npz
+  dataset_dir: data/BIDS_CHB-MIT
+  subject_id: "01"
+  task: prediction
+  batch_size: 16
+  num_workers: 4
+  use_uint16: false
+  dataloader_type: "undersample"
+  suffix: _fd_5s_prex5
+  kwargs:
+    offline_transforms: ["robust_norm"]
+
+monitor: auc
+monitor_mode: max
+
+cv:
+  outer_method: "LOO"
+  outer_shuffle: false
+  outer_n_fold: 8
+  outer_mode: "split"
+  outer_M: 10
+  inner_method: "KFold"
+  inner_n_fold: 5          # matches the paper's 5-fold protocol
+  inner_shuffle: false
+  inner_mode: "per_event_strata"
+  inner_M: 10
+  random_state: 42
+
+model:
+  name: md_rescapsnet
+  num_classes: 1
+  in_channels: 18
+  sfreq: 128.0
+  kwargs:
+    chunk_size: 640
+    f_max: 30.0            # STFT is truncated to 0-30 Hz
+    stem_channels: 64
+    stage_channels: [64, 128, 256, 512]
+    blocks_per_stage: 2
+    se_reduction: 16
+    num_primary_capsules: 8
+    primary_capsule_dim: 8
+    class_capsule_dim: 16
+    routing_iterations: 3
+    dropout: 0.1
+
+loss:
+  name: capsule_margin     # paper Eq. 16
+  kwargs:
+    m_pos: 0.9
+    m_neg: 0.1
+    lambda_neg: 0.5
+
+optim:
+  name: adam               # optimizer is not named in the paper
+  lr: 0.002
+  weight_decay: 0.0
+  kwargs: {}
+
+sched:
+  name: exponential        # paper: "exponentially decaying learning rate"
+  step: epoch
+  kwargs:
+    gamma: 0.95            # decay rate is not stated in the paper
+
+callbacks:
+  - name: early_stopping   
+    kwargs:
+      monitor: val_auc
+      mode: max
+      patience: 5

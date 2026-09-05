@@ -53,6 +53,26 @@ def test_prediction_metrics_ignore_augmented_segments():
         os.unlink(path)
 
 
+def test_validation_subset_excludes_augmented_segments():
+    from seizure_pred.data.base_dataset import BaseDataset
+    from seizure_pred.data.splits import original_only
+
+    dataset = BaseDataset()
+    dataset.X = np.zeros((3, 1, 2), dtype=np.float32)
+    dataset.y = np.array([0, 0, 1], dtype=np.int64)
+    dataset.group_ids = np.array(["a", "a", "b"])
+    dataset.metadata = [
+        {"augmented": 0, "id": "original"},
+        {"augmented": 1, "id": "augmented"},
+        {"id": "legacy"},
+    ]
+
+    filtered = original_only(dataset)
+
+    assert len(filtered) == 2
+    assert [meta["id"] for meta in filtered.metadata] == ["original", "legacy"]
+
+
 def test_auc_known_value():
     from seizure_pred.training.engine.metrics import binary_auc
 
@@ -429,3 +449,58 @@ def test_monitor_validation_rejects_unknown_metric():
             optimizer=OPTIMIZERS.create("adam", model.parameters(), lr=1e-3),
             scheduler=None, cfg=cfg, run_dir="runs/_monitor_test",
         )
+
+
+# ---------------------------------------------------------------- early stopping
+def _es(**kwargs):
+    from seizure_pred.training.callbacks.early_stopping import EarlyStopping
+
+    return EarlyStopping(**kwargs)
+
+
+def test_early_stopping_reads_trainer_state():
+    """The trainer never fills state['logs'], so the callback must read val_metrics.
+
+    Before this, `EarlyStopping` looked only in `state['logs']` and returned on
+    every epoch, which made the callback a no-op in both trainers.
+    """
+    cb = _es(monitor="val_auc", mode="max", patience=2)
+    state = {"val_loss": 0.5, "val_metrics": {"auc": 0.80}}
+    cb.on_epoch_end(state)
+    assert cb.best == pytest.approx(0.80)
+    assert not state.get("stop")
+
+    state["val_metrics"]["auc"] = 0.70
+    cb.on_epoch_end(state)
+    assert cb.bad_epochs == 1
+    assert not state.get("stop")
+
+    state["val_metrics"]["auc"] = 0.60
+    cb.on_epoch_end(state)
+    assert state["stop"] is True
+    assert state["stop_requested"] is True
+
+
+def test_early_stopping_accepts_either_metric_spelling():
+    """`auc` (val_metrics) and `val_auc` (history.jsonl) name the same metric."""
+    bare = _es(monitor="auc", mode="max", patience=1)
+    prefixed = _es(monitor="val_auc", mode="max", patience=1)
+    state = {"val_metrics": {"auc": 0.9}}
+
+    bare.on_epoch_end(state)
+    prefixed.on_epoch_end(state)
+    assert bare.best == prefixed.best == pytest.approx(0.9)
+
+
+def test_early_stopping_defaults_to_val_loss_and_ignores_missing_metric():
+    cb = _es(patience=1)  # monitor="val_loss", mode="min"
+    cb.on_epoch_end({"val_loss": 1.0, "val_metrics": {}})
+    assert cb.best == pytest.approx(1.0)
+
+    stalled = {"val_loss": 2.0, "val_metrics": {}}
+    cb.on_epoch_end(stalled)
+    assert stalled["stop"] is True
+
+    absent = _es(monitor="f1", mode="max", patience=1)
+    absent.on_epoch_end({"val_loss": 1.0, "val_metrics": {"auc": 0.5}})
+    assert absent.best is None

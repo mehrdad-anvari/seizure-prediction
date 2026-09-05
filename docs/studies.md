@@ -162,5 +162,93 @@ conda run -n torch-gpu seizure-pred train --config configs/studies/study003.yaml
 
 ---
 
+## STUDY-004: Comparison of Newly Added Models
+
+### Question
+
+> Which of the newly added model configurations (`ce_stsenet`, `darnet`,
+> `md_rescapsnet`, `seresnet3d`) performs best for seizure prediction at a
+> fixed operating point (threshold 0.5, no calibration, no moving average)
+> under the study-003 nested-CV protocol?
+
+### Motivation
+
+Four models were added to the model zoo, each with a runnable configuration in
+`configs/models/`. Every configuration inherits the
+`configs/studies/study003.yaml` protocol - subject `01`, `_fd_5s_prex5`
+segments, the same leave-one-preictal-out outer x KFold inner CV, and
+`monitor: auc` best-checkpoint selection - and changes only what the model
+needs: the offline transforms (all four drop `wavelet_filterbank` because they
+consume raw time windows) and the training recipe its paper specifies. Because
+architecture and recipe change together, the comparison is between end-to-end
+configurations, not between network architectures in isolation.
+
+### Hypothesis
+
+The models represent the raw window differently: CE-stSENet performs unified multi-level spectral and multi-scale temporal analysis using channel-embedding squeeze-and-excitation blocks; DARNet constructs spatiotemporal EEG representations with temporal and spatial convolutions and refines them using dual self-attention; MD-ResCapsNet applies CSP-based spatial enhancement and SE/spatial-attention residual feature extraction to STFT representations before capsule-based prediction; and 3D-SERESNet stacks multi-channel STFT maps into 3D volumes and processes them with 3D SE-ResNet blocks. These
+representations may trade sensitivity against false-alarm rate at the fixed
+threshold, so no single model is expected to dominate every metric.
+
+### Base Configuration
+
+`configs/studies/study003.yaml` is the shared protocol; each model is trained
+with its own `configs/models/<model>.yaml`. Per-model deltas are described in
+[Model zoo -> Example configs](models.md#example-configs).
+
+### Configurations
+
+| Configuration | Model | Config File | Training Recipe |
+|---------------|-------|-------------|-----------------|
+| `EXP-004-A` | `ce_stsenet` | `configs/models/ce_stsenet.yaml` | `bce_logits`, `adamw` 1e-4, 50 epochs |
+| `EXP-004-B` | `darnet` | `configs/models/darnet.yaml` | `bce_logits`, `adamw` 1e-4, 50 epochs |
+| `EXP-004-C` | `md_rescapsnet` | `configs/models/md_rescapsnet.yaml` | `capsule_margin`, `adam` 2e-3, exponential LR, 100 epochs |
+| `EXP-004-D` | `seresnet3d` | `configs/models/seresnet3d.yaml` | `focal`, `adamw` 3e-3, cosine warm restarts, 100 epochs |
+
+All four train on the same `_fd_5s_prex5` segments and stop early on
+`val_auc` (patience 5). Three use `robust_norm` as the offline transform;
+`seresnet3d` uses `offline_transforms: []` and z-scores each channel inside the
+model (paper Eq. 3).
+
+### Run
+
+Run each configuration in the `torch-gpu` environment:
+
+```text
+seizure-pred train --config configs/models/ce_stsenet.yaml
+seizure-pred train --config configs/models/darnet.yaml
+seizure-pred train --config configs/models/md_rescapsnet.yaml
+seizure-pred train --config configs/models/seresnet3d.yaml
+```
+
+### Results
+
+Each row is the `none,none,1,0.5` variant of the model's
+`runs/<model>/<stamp>/analysis/variant_summary.csv` - no calibration,
+moving-average window 1, threshold 0.5.
+
+`TPR = Sensitivity`
+`FPR/h suppressed: Ignore positive predictions for 5 minutes after a detection`
+
+| Configuration | AUC    | F1     | TPR  | FPR/h  | FPR/h supp. | Training Time |
+|---------------|:------:|:------:|:----:|:------:|:------------:|:--------------:|
+| `EXP-004-A`   | 0.8509 | 0.2848 | 1.0  |  68.81 | 6.10 | 2 h 20 min |
+| `EXP-004-B`   | 0.8582 | 0.2602 | 1.0  | 100.05 | 6.07 | 7 h 19 min |
+| `EXP-004-C`   | 0.8555 | 0.3051 | 1.0  | 131.35 | 5.75 | 5 h 41 min |
+| `EXP-004-D`   | 0.8918 | 0.2769 | 0.625 |  21.91 | 2.45 | 2 h 58 min |
+
+---
+
+## Model comparison
+
+Base configs for the models added to the zoo live in `configs/models/`, one file
+per model. They inherit `configs/studies/study003.yaml` (same subject, same
+nested CV, same `monitor: auc`) and change only the transforms the model needs
+and the training recipe its paper specifies —
+see [Model zoo → Example configs](models.md#example-configs) for the per-model
+deltas and for why `wavelet_filterbank` is not used with them.
+
+The left-hand columns come from `seizure-pred benchmark`, the right-hand ones
+from the nested-CV run of the corresponding config.
+
 | Configuration | Params | FLOPs | Latency (ms) | GPU Memory (MB) | AUC | Sensitivity | FPR/h | Notes |
 |---------|-------:|------:|-------------:|----------------:|----:|------------:|------:|------|

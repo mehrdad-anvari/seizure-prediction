@@ -50,8 +50,10 @@ class ModelConfig:
     Attributes:
         name: Name of the model plugin registered in the MODELS registry (e.g., "simple_cnn", "eegwavenet").
         num_classes: Number of classification target classes (usually 1 for binary logits).
-        in_channels: Number of input signal channels (inferred from data if None).
-        sfreq: Signal sampling frequency in Hz (inferred if None).
+        in_channels: Number of input signal channels. Not inferred from the
+            data -- set it whenever the model builder reads it.
+        sfreq: Signal sampling frequency in Hz. Also not inferred; required by
+            models with an internal spectral or feature front-end.
         kwargs: Additional model-specific initialization keyword arguments.
     """
     name: str = "simple_cnn"

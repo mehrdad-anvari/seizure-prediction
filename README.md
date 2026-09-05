@@ -30,8 +30,10 @@ nested cross-validation, calibration-aware analysis, benchmarking and XAI.
   and topomaps (optional).
 - **Standard run artifacts** — `schema.json`, `config.json`, `history.jsonl`,
   `metrics.json`, `predictions.jsonl`, `checkpoints/`.
-- **22 models** — from `simple_cnn`, `eegnet`, `eegwavenet` to graph models
-  (`rgnn`, `dgcnn2`, `eeg_gnn_ssl`) and the flagship `mb_dmgc_cwtffnet`.
+- **29 models** — from `simple_cnn`, `eegnet`, `eegwavenet` to attention models
+  (`darnet`, `mhanet`), graph models (`rgnn`, `dgcnn2`, `eeg_gnn_ssl`), recent
+  paper reconstructions (`fapex`, `md_rescapsnet`, `seizurenet_kan`,
+  `seresnet3d`, `sbtm`) and the flagship `mb_dmgc_cwtffnet`.
 
 > The library lives under `src/seizure_pred/`. Install it editable and import
 > `seizure_pred`.

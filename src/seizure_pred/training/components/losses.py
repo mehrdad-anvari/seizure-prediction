@@ -117,3 +117,41 @@ class MILConfidentLoss(nn.Module):
 @LOSSES.register("mil_confident_loss", help="MIL Confident Loss on instance-level logits.")
 def build_mil_confident_loss(**kwargs) -> nn.Module:
     return MILConfidentLoss()
+
+
+class CapsuleMarginLoss(nn.Module):
+    r"""Margin loss for capsule outputs (Sabour et al.; used by MD-ResCapsNet).
+
+    :math:`L_k = T_k\,\max(0, m^+ - \|v_k\|)^2 + \lambda (1 - T_k)\,\max(0, \|v_k\| - m^-)^2`.
+
+    Capsule models in this library emit a logit transform of the capsule norm so
+    they satisfy the logits contract, so the norms are recovered here with a
+    sigmoid. That makes this loss a drop-in alternative to ``bce_logits``.
+    """
+
+    def __init__(self, m_pos: float = 0.9, m_neg: float = 0.1, lambda_neg: float = 0.5):
+        super().__init__()
+        self.m_pos = float(m_pos)
+        self.m_neg = float(m_neg)
+        self.lambda_neg = float(lambda_neg)
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        lengths = torch.sigmoid(logits)
+        if lengths.ndim == 1:
+            lengths = lengths.unsqueeze(-1)
+
+        if lengths.shape[-1] == 1:
+            present = targets.reshape(lengths.shape).to(lengths.dtype)
+        else:
+            present = torch.zeros_like(lengths)
+            present.scatter_(1, targets.reshape(-1, 1).long(), 1.0)
+
+        pos = present * torch.nn.functional.relu(self.m_pos - lengths).pow(2)
+        neg = self.lambda_neg * (1.0 - present) * torch.nn.functional.relu(lengths - self.m_neg).pow(2)
+        return (pos + neg).sum(dim=-1).mean()
+
+
+@LOSSES.register("capsule_margin", help="Margin loss on capsule norms (MD-ResCapsNet).")
+def build_capsule_margin(*, m_pos: float = 0.9, m_neg: float = 0.1,
+                         lambda_neg: float = 0.5, **kwargs) -> nn.Module:
+    return CapsuleMarginLoss(m_pos=m_pos, m_neg=m_neg, lambda_neg=lambda_neg)

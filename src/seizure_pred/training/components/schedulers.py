@@ -19,6 +19,29 @@ def build_cosine(optimizer: torch.optim.Optimizer, T_max: int, eta_min: float = 
     return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=int(T_max), eta_min=float(eta_min))
 
 
+@SCHEDULERS.register("exponential", help="ExponentialLR")
+def build_exponential(optimizer: torch.optim.Optimizer, gamma: float = 0.95, **kwargs):
+    _ = kwargs
+    return torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=float(gamma))
+
+
+@SCHEDULERS.register("cosine_warm_restarts", help="CosineAnnealingWarmRestarts")
+def build_cosine_warm_restarts(
+    optimizer: torch.optim.Optimizer,
+    T_0: int = 10,
+    T_mult: int = 1,
+    eta_min: float = 0.0,
+    **kwargs,
+):
+    _ = kwargs
+    return torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        optimizer,
+        T_0=int(T_0),
+        T_mult=int(T_mult),
+        eta_min=float(eta_min),
+    )
+
+
 @SCHEDULERS.register("onecycle", help="OneCycleLR (requires steps_per_epoch and epochs)")
 def build_onecycle(
     optimizer: torch.optim.Optimizer,

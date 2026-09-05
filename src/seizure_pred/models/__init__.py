@@ -30,12 +30,23 @@ def register_all() -> None:
     from . import tslanet  # noqa: F401
     from . import simplevit  # noqa: F401
     from . import eeg_band_classifier  # noqa: F401
+    from . import darnet  # noqa: F401
+
+    # Models reconstructed from recent papers (torch-only)
+    from . import fapex  # noqa: F401
+    from . import md_rescapsnet  # noqa: F401
+    from . import seizurenet_kan  # noqa: F401
+    from . import seresnet3d  # noqa: F401
+    from . import sbtm  # noqa: F401
 
     # Additional models ported from the original repository (torch-only)
     from . import mb_dmgc_cwtffnet  # noqa: F401
 
     # Optional: LaBraM (requires einops)
     _try_import("seizure_pred.models.labram")
+
+    # Optional: MHANet (requires einops)
+    _try_import("seizure_pred.models.mhanet")
 
     # Conformer package + wrapper (torch-only)
     from . import conformer_model  # noqa: F401

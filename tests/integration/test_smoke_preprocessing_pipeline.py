@@ -1,4 +1,37 @@
 from seizure_pred.preprocessing.chbmit_bids import process_chbmit_bids_dataset
+from seizure_pred.preprocessing.utils import extract_segments_with_labels_bids
+
+
+def test_preprocess_cli_accepts_interictal_oversample_factor():
+    from seizure_pred.cli.main import build_parser
+
+    args = build_parser().parse_args([
+        "preprocess-chbmit",
+        "--dataset-dir", "dataset",
+        "--interictal-oversample-factor", "3",
+    ])
+
+    assert args.interictal_oversample_factor == 3
+
+
+def test_interictal_oversampling_increases_segments(fake_raw):
+    import mne
+
+    fake_raw.set_annotations(mne.Annotations(
+        onset=[0], duration=[20], description=["interictal"]
+    ))
+
+    baseline = extract_segments_with_labels_bids(
+        fake_raw, segment_sec=5, interictal_oversample_factor=1
+    )
+    oversampled = extract_segments_with_labels_bids(
+        fake_raw, segment_sec=5, interictal_oversample_factor=3
+    )
+
+    assert len(oversampled[1]) > len(baseline[1])
+    assert set(oversampled[3][0].keys()) >= {"applied_factor", "applied_overlap_sec"}
+    assert oversampled[3][0]["applied_factor"] == 3.0
+    assert oversampled[2]["augmented"].tolist() == [0, 1, 1, 0, 1, 1, 0, 1, 1, 0]
 
 def test_smoke_preprocessing_pipeline(fake_dataset, fake_read_raw_edf, monkeypatch):
 
@@ -27,4 +60,3 @@ def test_smoke_preprocessing_pipeline(fake_dataset, fake_read_raw_edf, monkeypat
 
     assert (session_dir / "event_stats.csv").exists()
     assert len(list(session_dir.glob("*.npz"))) > 0
- 

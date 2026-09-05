@@ -1,0 +1,96 @@
+# SBTM (Sci. Reports 2026) on CHB-MIT — spectral/Hjorth/statistical features
+# feeding a Bi-LSTM.
+#
+# Reconstruction from the paper text (no reference code published) — see the
+# module docstring in src/seizure_pred/models/sbtm.py. The paper's "Spizella"
+# metaheuristic optimizer is deliberately not implemented: it replaces gradient
+# descent, so it belongs in the OPTIMIZERS registry rather than in the model.
+# The paper itself describes it as substituting Adam, so Adam is what this
+# config uses.
+#
+# Baseline: configs/studies/study003.yaml. Deltas:
+#   - offline_transforms drops `wavelet_filterbank`: the Hjorth parameters and
+#     band powers are computed from the raw window by the model, and both are
+#     defined against a real sampling rate.
+#   - `sfreq` is explicit — the band-power features are cut at real frequencies.
+#   - `amp: false` — the spectral features go through an FFT; fp32 keeps them
+#     well-conditioned, and the Bi-LSTM is small enough not to need autocast.
+#
+# From the paper (Table 4): Bi-LSTM with 100 hidden units, a dense layer, and a
+# 2-way softmax. Here `num_classes: 1` with `bce_logits` is the equivalent
+# binary form used throughout this repo. Not stated by the paper: learning
+# rate, batch size, and epoch count, which keep the study003 values, and
+# `num_steps` (how the fused feature vector is chunked into a sequence).
+
+task: prediction
+seed: 42
+device: cuda
+epochs: 50
+amp: false
+grad_clip_norm: 1.0
+log_every: 10
+save_dir: runs
+run_name: sbtm
+
+data:
+  name: chbmit_npz
+  dataset_dir: data/BIDS_CHB-MIT
+  subject_id: "01"
+  task: prediction
+  batch_size: 32
+  num_workers: 4
+  use_uint16: false
+  dataloader_type: "undersample"
+  suffix: _fd_5s_prex5
+  kwargs:
+    offline_transforms: ["robust_norm"]
+
+monitor: auc
+monitor_mode: max
+
+cv:
+  outer_method: "LOO"
+  outer_shuffle: false
+  outer_n_fold: 8
+  outer_mode: "split"
+  outer_M: 10
+  inner_method: "KFold"
+  inner_n_fold: 5
+  inner_shuffle: false
+  inner_mode: "per_event_strata"
+  inner_M: 10
+  random_state: 42
+
+model:
+  name: sbtm
+  num_classes: 1
+  in_channels: 18
+  sfreq: 128.0
+  kwargs:
+    chunk_size: 640
+    num_steps: 10
+    hidden_size: 100       # paper Table 4: 100 hidden units
+    num_layers: 1
+    dense_hidden: 64
+    dropout: 0.2
+
+loss:
+  name: bce_logits
+  kwargs: {}
+
+optim:
+  name: adam               # paper: the Spizella optimizer substitutes Adam
+  lr: 0.001
+  weight_decay: 0.0
+  kwargs: {}
+
+sched:
+  name: null
+  kwargs: {}
+
+callbacks:
+  - name: early_stopping   
+    kwargs:
+      monitor: val_auc
+      mode: max
+      patience: 5

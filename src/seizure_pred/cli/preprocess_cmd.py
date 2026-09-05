@@ -29,6 +29,7 @@ def add_preprocess_cmd(sub: argparse._SubParsersAction) -> None:
     p.add_argument("--segment-sec", type=int, default=5)
     p.add_argument("--preictal-oversample-factor", type=int, default=1)
     p.add_argument("--seizure-oversample-factor", type=int, default=1)
+    p.add_argument("--interictal-oversample-factor", type=int, default=1)
 
     p.add_argument("--plot", action="store_true")
     p.add_argument("--plot-psd", action="store_true")
@@ -60,6 +61,7 @@ def run_preprocess_cmd(args: argparse.Namespace) -> None:
         subj_nums=subj_nums,
         preictal_oversample_factor=args.preictal_oversample_factor,
         seizure_oversample_factor=args.seizure_oversample_factor,
+        interictal_oversample_factor=args.interictal_oversample_factor,
         preictal_minutes=args.preictal_minutes,
         post_buffer_minutes=args.post_buffer_minutes,
         pre_buffer_minutes=args.pre_buffer_minutes,

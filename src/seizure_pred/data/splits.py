@@ -36,6 +36,19 @@ class SubsetWithInfo(Subset):
         target_indices = np.where(self.y == 1)[0]
         baseline_indices = np.where(self.y == 0)[0]
         return target_indices, baseline_indices
+
+
+def original_only(dataset: Union[CHBMITDataset, SubsetWithInfo]) -> SubsetWithInfo:
+    """Return a subset containing only non-augmented samples.
+
+    Validation and test metrics should represent the original fixed-length
+    windows, not the extra overlapping windows created by preprocessing.
+    Missing ``augmented`` metadata is treated as original for older datasets.
+    """
+    from seizure_pred.training.engine.metrics import is_original_segment_meta
+
+    indices = [i for i, meta in enumerate(dataset.metadata) if is_original_segment_meta(meta)]
+    return SubsetWithInfo(dataset, np.asarray(indices, dtype=int))
     
 def leave_one_out(
     dataset: Union[CHBMITDataset, SubsetWithInfo],
