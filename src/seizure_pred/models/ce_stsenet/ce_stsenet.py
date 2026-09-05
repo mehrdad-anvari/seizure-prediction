@@ -296,8 +296,10 @@ class MultiLevel_Spectral(nn.Module):
         return out[:, 0::2,:, :], out[:, 1::2, :, :]
 
 class CE_stSENet(nn.Module):
-    def __init__(self, inc, class_num, si, outc_max = 128, num_of_layer = 1):
+    def __init__(self, in_channels, num_classes, si=128, outc_max = 128, num_of_layer = 1):
         super(CE_stSENet, self).__init__()  
+        inc = in_channels
+        class_num = num_classes
         self.fi = math.floor(math.log2(si))
         self.embedding = Embedding_Block(Input_Layer, 
                                          Residual_Block, 
@@ -352,7 +354,7 @@ class CE_stSENet(nn.Module):
         x1, x2, x3, x4, x5 = self.reshape(x1), self.reshape(x2), self.reshape(x3), self.reshape(x4), self.reshape(x5)
         cat_f = torch.cat((x1, x2, x3, x4, x5), 1)
         output, decov1= self.conv_classifier(cat_f)
-        return output.squeeze()
+        return output
 
 
 if __name__ == "__main__":
@@ -360,7 +362,7 @@ if __name__ == "__main__":
     from torchinfo import summary
 
     torch.manual_seed(0)
-    model = CE_stSENet(inc=18,class_num=2,si=128).cuda()
+    model = CE_stSENet(in_channels=18,num_classes=2,si=128).cuda()
 
     summary(model, (2, 18, 640))
 
