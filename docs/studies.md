@@ -317,9 +317,12 @@ moving-average window 1, threshold 0.5.
 `TPR = Sensitivity`
 `FPR/h suppressed: Ignore positive predictions for 5 minutes after a detection`
 
-| Configuration | AUC    | F1     | TPR  | FPR/h  | FPR/h supp. | Training Time |
-|---------------|:------:|:------:|:----:|:------:|:------------:|:--------------:|
-
+| Configuration | AUC    | F1     | TPR  | FPR/h  | FPR/h supp. |
+|---------------|:------:|:------:|:----:|:------:|:------------:|
+| `EXP-005-A` | 0.8667 | 0.3294 | 1.0 | 86.77 | 5.50 |
+| `EXP-005-B` |        |        |     |        |      |
+| `EXP-005-C` | 0.8534 | 0.3102 | 1.0 | 100.51 | 6.17 |
+| `EXP-005-D` | 0.8530 | 0.3140 | 1.0 | 94.56 | 5.93 |
 ---
 
 ## Model comparison
