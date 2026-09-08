@@ -13,7 +13,11 @@ def add_preprocess_cmd(sub: argparse._SubParsersAction) -> None:
     p.add_argument("--no-ica", action="store_true")
     p.add_argument("--no-downsample", action="store_true")
 
-    p.add_argument("--filter-type", default="FIR", choices=["FIR", "IIR"])
+    p.add_argument(
+        "--filter-type",
+        default="FIR",
+        choices=["IIR", "FIR", "IIR_zero_phase", "FIR_zero_phase"],
+    )
     p.add_argument("--l-freq", type=float, default=0.5)
     p.add_argument("--h-freq", type=float, default=50.0)
 

@@ -57,8 +57,10 @@ def preprocess_chbmit(
         if true the ica will be applied, default = True.
     apply_filter: bool
         If true the filtering will be applied, default = True.
-    filter_type : {"IIR", "FIR"}
-        Type of bandpass filter to use. Default is "IIR".
+    filter_type : {"IIR", "FIR", "IIR_zero_phase", "FIR_zero_phase"}
+        Type of bandpass filter to use. "IIR" and "FIR" are the causal
+        (minimum/forward phase) designs; the "_zero_phase" variants apply the
+        same designs with zero phase. Default is "IIR".
     downsample_method : {"polyphase", "fft"}
         Method for downsampling. Default is "polyphase".
     normalize : {"zscore", "robust", None}
@@ -91,10 +93,24 @@ def preprocess_chbmit(
                     method="iir",
                     phase="forward",
                 )
+            elif filter_type == "FIR_zero_phase":
+                raw_proc.filter(
+                    l_freq=l_freq,
+                    h_freq=h_freq,
+                    method="fir",
+                    phase="zero",
+                )
+            elif filter_type == "IIR_zero_phase":
+                raw_proc.filter(
+                    l_freq=l_freq,
+                    h_freq=h_freq,
+                    method="iir",
+                    phase="zero",
+                )
             else:
                 raise ValueError(
                     f"Unknown filter_type: {filter_type!r}. "
-                    "Use 'IIR' or 'FIR'."
+                    "Use 'IIR', 'FIR', 'IIR_zero_phase', or 'FIR_zero_phase'."
                 )
         
         # 3. ICA
