@@ -13,7 +13,7 @@ Use `seizure-pred list` to see exactly what is available in your environment
 |------|------|-------|
 | `simple_cnn` | 1D CNN | baseline; `in_channels`, `hidden` |
 | `eegnet` | CNN | EEGNet; `num_electrodes`, `chunk_size`, `F1`, `F2`, `D`, `kernel_1/2`, `dropout` |
-| `eegwavenet` / `eegwavenet_tiny` | WaveNet | wavelet-component branches; `model_size` |
+| `eegwavenet` / `eegwavenet_tiny` | WaveNet | wavelet-component branches; `model_size`, `input_bn` (input BatchNorm before the band split: `"none"` default, `"per_channel"`, or `"global"`) |
 | `tsception` | T/S CNN | `sampling_rate`, `num_T`, `num_S`, `hidden`, `dropout_rate` |
 | `fbmsnet` | filter-bank CNN | expects offline `filterbank` transform |
 | `lmda` | depth-attention CNN | `chans`, `samples`, `depth`, `kernel` |

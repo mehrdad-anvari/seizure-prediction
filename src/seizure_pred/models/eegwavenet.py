@@ -4,6 +4,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
+_INPUT_BN_MODES = ("none", "per_channel", "global")
+
 class WaveletBranch(nn.Module):
     """Processes a single wavelet component (detail or approximation)."""
     def __init__(self, n_channels, kernel_t_len, n_output_features=16, n_temp_features=16 ,pool_kernel=4, pool_stride=4):
@@ -35,11 +38,24 @@ class WaveletBranch(nn.Module):
 class EEGWaveletEmbeddingNet(nn.Module):
     """Handles multi-resolution wavelet components and fuses their embeddings."""
     def __init__(self, n_channels=18, component_lengths=(320, 160, 80, 40, 40),
-                 kernel_t_lens=None, n_output_features=16, fuse_output_features=32, n_temp_features=16):
+                 kernel_t_lens=None, n_output_features=16, fuse_output_features=32, n_temp_features=16,
+                 input_bn: str = "none"):
         super().__init__()
         self.n_channels = n_channels
         self.component_lengths = component_lengths
         self.n_components = len(component_lengths)
+
+        if input_bn not in _INPUT_BN_MODES:
+            raise ValueError(
+                f"input_bn must be one of {_INPUT_BN_MODES}; got {input_bn!r}"
+            )
+        self.input_bn_mode = input_bn
+        if input_bn == "per_channel":
+            self.input_bn = nn.BatchNorm1d(n_channels)
+        elif input_bn == "global":
+            self.input_bn = nn.BatchNorm1d(1)
+        else:
+            self.input_bn = None
 
         if kernel_t_lens is None:
             kernel_t_lens = [7] * self.n_components
@@ -56,6 +72,21 @@ class EEGWaveletEmbeddingNet(nn.Module):
         # Fuse features across scales (time dimension collapsed)
         self.fuse_conv = nn.Conv2d(n_output_features, fuse_output_features, kernel_size=(1, self.n_components))
 
+    def _apply_input_bn(self, x):
+        """Normalize the concatenated wavelet input before splitting the bands.
+
+        ``per_channel`` uses one running mean/variance per EEG channel, while
+        ``global`` uses a single statistic for all channels and bands. Both keep
+        the relative power of the wavelet bands, since every band of a channel
+        is scaled by the same factor.
+        """
+        if self.input_bn is None:
+            return x
+        B, C, total_T = x.shape
+        if self.input_bn_mode == "global":
+            return self.input_bn(x.reshape(B, 1, C * total_T)).reshape(B, C, total_T)
+        return self.input_bn(x)
+
     def forward(self, x):
         """
         x: concatenated components (B, C, sum(T_i))
@@ -63,6 +94,8 @@ class EEGWaveletEmbeddingNet(nn.Module):
         B, C, total_T = x.shape
         assert total_T == sum(self.component_lengths), \
             f"Expected total time {sum(self.component_lengths)}, got {total_T}"
+
+        x = self._apply_input_bn(x)
 
         # Split input into wavelet components
         splits = torch.split(x, self.component_lengths, dim=2)
@@ -85,7 +118,7 @@ class EEGWaveletEmbeddingNet(nn.Module):
         return fused
 
 class EEGWaveNet(nn.Module):
-    def __init__(self, n_classes=2, model_size: str  = 'medium'):
+    def __init__(self, n_classes=2, model_size: str  = 'medium', input_bn: str = "none"):
         super().__init__()
         if model_size == 'tiny':
             n_output_features = 4
@@ -105,7 +138,8 @@ class EEGWaveNet(nn.Module):
             component_lengths=(320, 160, 80, 40, 40),
             n_output_features=n_output_features,
             fuse_output_features=fuse_output_features,
-            n_temp_features=n_temp_features
+            n_temp_features=n_temp_features,
+            input_bn=input_bn
         )
 
         self.classifier = nn.Sequential(
@@ -155,9 +189,11 @@ def build_eegwavenet(cfg: ModelConfig):
     kw = dict(getattr(cfg, "kwargs", {}) or {})
     n_classes = int(getattr(cfg, "num_classes", 2))
     model_size = kw.get("model_size", "medium")
+    input_bn = kw.get("input_bn", "none")
     return EEGWaveNet(
         n_classes=n_classes,
-        model_size=model_size
+        model_size=model_size,
+        input_bn=input_bn,
     )
 
 @MODELS.register("eegwavenet_tiny", help="EEGWaveNet tiny model.")
