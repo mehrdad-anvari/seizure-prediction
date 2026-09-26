@@ -412,6 +412,92 @@ moving-average window 1, threshold 0.5. `EXP-006-B` is the per-channel BN run
 | `EXP-006-B` | 0.8710 | 0.3475 | 1.0 | 87.65 | 5.56 |
 | `EXP-006-C` | 0.8730 | 0.3514 | 1.0 | 92.98 | 5.80 |
 
+## STUDY-007: Effect of Learning-Rate Scheduling
+
+### Question
+
+> Does adding a learning-rate scheduler on top of the best STUDY-006
+> configuration (`EXP-006-C`, global input BatchNorm) improve seizure prediction
+> under the STUDY-005 protocol?
+
+### Motivation
+
+STUDY-006 found that dropping the offline `robust_norm` transform in favour of a
+model-side input BatchNorm (`input_bn: global`) gives the best AUC so far
+(0.8730), but every study to this point trained with a constant learning rate:
+`EXP-006-C` uses `adamw` at `lr: 0.0001` with `sched.name: null`. A scheduler
+decays (or cycles) the learning rate over training, letting the model take
+larger early steps and then settle into a flatter minimum. The framework
+registers `step`, `cosine`, `exponential`, and `cosine_warm_restarts`; `onecycle`
+is also available but requires `step: step` plus an explicit `steps_per_epoch`,
+so it is left out of this study. This study keeps everything about `EXP-006-C`
+fixed - `input_bn: global`, `wavelet_filterbank` as the only offline transform,
+`adamw` 1e-4, 50 epochs, nested CV, `monitor: auc`, and early stopping on
+`val_auc` (patience 5) - and changes only the `sched` block.
+
+### Hypothesis
+
+A decaying schedule reduces the late-epoch oscillation of a constant-LR run and
+may improve discrimination (AUC/F1), though early stopping already keeps the
+best validation epoch, so the gain is expected to be small. An over-aggressive
+decay (for example `step` with PyTorch's default `gamma: 0.1`) may instead
+under-fit the later epochs and lower AUC. Because a fixed 0.5 threshold already
+gives sensitivity 1.0 in every STUDY-006 variant, any scheduler effect should
+appear mainly in AUC/F1 and the FPR/h trade-off rather than in TPR.
+
+### Base Configuration
+
+`configs/studies/study007.yaml`
+
+The base configuration is `configs/studies/study006.yaml` with the scheduler
+filled in (`sched.name: cosine`, `T_max: 50`, `eta_min: 0.0`) and
+`run_name: study_007`. The `EXP-007-A` result is reused directly from
+`EXP-006-C` (identical configuration with `sched.name: null`) and does not need
+to be retrained.
+
+### Configurations
+
+| Configuration | Scheduler | `sched` block |
+|---------------|-----------|---------------|
+| `EXP-007-A` | None (constant LR) | `{name: null, kwargs: {}}` |
+| `EXP-007-B` | Cosine annealing | `{name: cosine, step: epoch, kwargs: {T_max: 50, eta_min: 0.0}}` |
+| `EXP-007-C` | Step decay | `{name: step, step: epoch, kwargs: {step_size: 15, gamma: 0.5}}` |
+| `EXP-007-D` | Exponential decay | `{name: exponential, step: epoch, kwargs: {gamma: 0.95}}` |
+
+All four variants share the same data, model, loss, optimizer, and callbacks;
+only the `sched` block changes. `T_max` equals the epoch budget and
+`EXP-007-D`'s `gamma: 0.95` matches the decay used by
+`configs/models/md_rescapsnet.yaml`. Every variant steps once per epoch
+(`step: epoch`), matching the `SchedConfig` default.
+
+### Run
+
+Edit the `sched` block of `configs/studies/study007.yaml` to the variant before
+each run, then train it in the `torch-gpu` environment:
+
+```text
+seizure-pred train --config configs/studies/study007.yaml --strict
+```
+
+### Results
+
+Each row is the `none,none,1,0.5` variant of the run's
+`runs/study_007/<stamp>/analysis/variant_summary.csv` - no calibration,
+moving-average window 1, threshold 0.5. `EXP-007-A` is copied from `EXP-006-C`;
+`EXP-007-B` is the cosine run (`runs/study_007/20260926_122926`), `EXP-007-C`
+the step run (`runs/study_007/20260926_132902`), and `EXP-007-D` the
+exponential run (`runs/study_007/20260926_145412`).
+
+`TPR = Sensitivity`
+`FPR/h suppressed: Ignore positive predictions for 5 minutes after a detection`
+
+| Configuration | AUC    | F1     | TPR  | FPR/h  | FPR/h supp. |
+|---------------|:------:|:------:|:----:|:------:|:------------:|
+| `EXP-007-A` | 0.8730 | 0.3514 | 1.0 | 92.98 | 5.80 |
+| `EXP-007-B` | 0.8701 | 0.3419 | 1.0 | 86.84 | 5.70 |
+| `EXP-007-C` | 0.8759 | 0.3476 | 1.0 | 91.56 | 5.72 |
+| `EXP-007-D` | 0.8749 | 0.3359 | 1.0 | 93.43 | 5.68 |
+
 ---
 
 ## Model comparison
