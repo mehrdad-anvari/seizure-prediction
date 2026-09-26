@@ -325,6 +325,95 @@ moving-average window 1, threshold 0.5.
 | `EXP-005-D` | 0.8530 | 0.3140 | 1.0 | 94.56 | 5.93 |
 ---
 
+## STUDY-006: Wavelet-Input Batch Normalization
+
+### Question
+
+> Does replacing the `robust_norm` offline transform with no transform-level
+> normalization plus an input BatchNorm (per-channel or global) on the
+> concatenated wavelet bands of EEGWaveNet improve seizure prediction under the
+> STUDY-005 protocol?
+
+### Motivation
+
+STUDY-002 established `robust_norm` as the best offline normalization among
+none, z-score (`instance_norm`), and robust (`robust_norm`), and every study
+since then (STUDY-003 to STUDY-005) fixed `robust_norm` + `wavelet_filterbank`.
+An alternative to a fitted offline transform is to let the model learn the
+input statistics itself: `EEGWaveNet(input_bn=...)` normalizes the concatenated
+multi-band input inside `EEGWaveletEmbeddingNet` before it is split into the
+wavelet-component branches. Because all bands of a channel are scaled by the
+same factor, the relative power of the bands is preserved, unlike a
+normalization applied inside each branch. The three supported modes are
+`"none"` (default), `"per_channel"`, and `"global"`. This reduces preprocessing
+to `wavelet_filterbank` alone and avoids fitting a transform on the training
+split before the validation and test splits can be materialized. This study
+keeps the EEGWaveNet protocol of `configs/studies/study005.yaml` fixed (subject
+`01`, `_fd_5s_prex5` segments, nested CV, `monitor: auc`) and changes only how
+the input is scaled.
+
+### Hypothesis
+
+Batch normalization uses running statistics estimated over the training set, so
+it provides a stable global scale while preserving between-window amplitude
+differences and the relative power of the wavelet bands. Because the affine
+parameters are learned, the network can adapt the scale after normalization,
+which may match or exceed the fixed `robust_norm` baseline. If per-window
+normalization of amplitude is the main driver of the previous gain,
+`robust_norm` should remain superior.
+
+### Base Configuration
+
+`configs/studies/study006.yaml`
+
+The base configuration drops the offline normalization transform (keeping only
+`wavelet_filterbank`) and sets `input_bn: per_channel` for EEGWaveNet in
+`EXP-006-B`; `EXP-006-C` keeps the same configuration but uses
+`input_bn: global`. The `EXP-006-A` result is reused directly from `EXP-005-A`
+(same `robust_norm` protocol, filter, and data) and does not need to be
+retrained.
+
+### Configurations
+
+| Configuration | Input Scaling | Offline Transform | Model Option |
+|---------------|---------------|-------------------|--------------|
+| `EXP-006-A` | Robust, per-window | `offline_transforms: ["robust_norm", "wavelet_filterbank"]` | - |
+| `EXP-006-B` | BatchNorm, per-channel | `offline_transforms: ["wavelet_filterbank"]` | `model.kwargs: {input_bn: per_channel}` |
+| `EXP-006-C` | BatchNorm, global | `offline_transforms: ["wavelet_filterbank"]` | `model.kwargs: {input_bn: global}` |
+
+All three experiments consume the same `_fd_5s_prex5` segments used by STUDY-005,
+so no new preprocessing is required. The `input_bn` option defaults to `"none"`,
+so configs that do not set it keep the original EEGWaveNet architecture;
+`EXP-006-C` uses `"global"` to scale all channels and bands with one statistic.
+
+### Run
+
+Run the new experiment in the `torch-gpu` environment:
+
+```text
+seizure-pred train --config configs/studies/study006.yaml --strict
+```
+
+### Results
+
+Each row is the `none,none,1,0.5` variant of the run's
+`runs/study_006/<stamp>/analysis/variant_summary.csv` - no calibration,
+moving-average window 1, threshold 0.5. `EXP-006-B` is the per-channel BN run
+(`runs/study_006/20260925_203024`) and `EXP-006-C` the global BN run
+(`runs/study_006/20260926_054239`). The `EXP-006-A` row is copied from
+`EXP-005-A`.
+
+`TPR = Sensitivity`
+`FPR/h suppressed: Ignore positive predictions for 5 minutes after a detection`
+
+| Configuration | AUC    | F1     | TPR  | FPR/h  | FPR/h supp. |
+|---------------|:------:|:------:|:----:|:------:|:------------:|
+| `EXP-006-A` | 0.8667 | 0.3294 | 1.0 | 86.77 | 5.50 |
+| `EXP-006-B` | 0.8710 | 0.3475 | 1.0 | 87.65 | 5.56 |
+| `EXP-006-C` | 0.8730 | 0.3514 | 1.0 | 92.98 | 5.80 |
+
+---
+
 ## Model comparison
 
 Base configs for the models added to the zoo live in `configs/models/`, one file
