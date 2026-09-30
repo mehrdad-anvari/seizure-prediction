@@ -500,6 +500,72 @@ exponential run (`runs/study_007/20260926_145412`).
 
 ---
 
+## Full-Dataset Runs
+
+The studies above change one configuration parameter at a time and usually
+evaluate on subject `01`. A **full-dataset run** instead takes one
+already-selected configuration and trains and evaluates it on every subject of
+the dataset, one run per subject, so the configuration can be reported over the
+whole cohort.
+
+A full-dataset run is not a hypothesis test: it documents a configuration that
+has already been chosen, normally by a study, and can be added without opening a
+new STUDY. Each run is labelled `RUN-00N`, keeps its own base config under
+`configs/full_dataset/`, and records the source `EXP-*` it inherits from, the subjects
+that were run, and the results.
+
+The results table for a run is deliberately not fixed yet. A single subject can
+prefer a different post-processing variant (moving-average window, threshold,
+calibration mode) or sit on a different point of the sensitivity / FPR Pareto
+front, so both the columns and the rule for choosing a per-subject "best
+variant" are deferred until the runs are complete. Whatever the final schema,
+the table should stay small: one row per subject with a fixed set of columns,
+not one row per variant.
+
+### RUN-001: EEGWaveNet, global input BatchNorm, exponential LR
+
+#### Base Configuration
+
+`configs/full_dataset/run001.yaml` - `EXP-007-D`: the `configs/studies/study007.yaml`
+protocol with `sched.name: exponential` and `gamma: 0.95`, the exponential-decay
+arm of [STUDY-007](#study-007-effect-of-learning-rate-scheduling).
+
+#### Scope
+
+Every subject of `data/BIDS_CHB-MIT`, one training/evaluation run per subject.
+The dataset has 23 subject directories and 22 of them currently contain
+`_fd_5s_prex5` segments (`sub-12` has none); subjects without data are skipped
+with a `nodata` entry in the summary.
+
+`data.subject_id` selects exactly one subject and the loader does not accept
+`"*"` (the docstring in `CHBMITDataset` says otherwise, but the directory check
+rejects it), so each subject needs its own run.
+
+#### Run
+
+`examples/scripts/run_full_dataset.py` reads the run's base config, writes a
+resolved per-subject config to `runs/<group>/sub-<ID>/config_used.yaml`, trains
+it, and, unless `--no-analyze` is passed, runs `seizure-pred analyze` on the
+resulting run. A config's `run_name` becomes the run group, so each subject's
+results stay in their own folder, `runs/<group>/sub-<ID>/<timestamp>/`:
+
+```text
+python examples/scripts/run_full_dataset.py --config configs/full_dataset/run001.yaml
+```
+
+The scheduler is part of the base config rather than a command-line override:
+`--override` deep-merges dictionaries and cannot drop keys already present in
+`sched.kwargs`. Use `--subjects 01 02` to run a subset, `--skip-existing` to skip
+subjects that already have a completed run, and `--dry-run` to print the plan
+without training anything.
+
+#### Results
+
+To be filled in once all subjects have been run. See the note above on why the
+table schema is deferred.
+
+---
+
 ## Model comparison
 
 Base configs for the models added to the zoo live in `configs/models/`, one file

@@ -282,6 +282,8 @@ Listed in `TrainConfig.callbacks` as `{name, kwargs}` entries and rebuilt per fo
 ### Ready-made configs
 
 - `configs/studies/study00{1,2,3}.yaml`: the nested-CV study configs (see [Studies](studies.md))
+- `configs/full_dataset/*.yaml`: one base config per full-dataset run, i.e. one configuration
+  trained on every subject (see [Full-Dataset Runs](studies.md#full-dataset-runs))
 - `configs/models/*.yaml`: one runnable config per recently added model, each with
   the loss/optimizer/schedule its paper specifies (see [Model zoo](models.md#example-configs))
 - `examples/config_*.yaml`: minimal single-split, MIL, and synthetic configs

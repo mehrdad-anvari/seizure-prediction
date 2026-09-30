@@ -39,3 +39,7 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(2)
 
     args.func(args)
+
+
+if __name__ == "__main__":  # allow `python -m seizure_pred.cli.main ...`
+    main()
