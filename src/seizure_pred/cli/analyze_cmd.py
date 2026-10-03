@@ -26,6 +26,11 @@ def add_analyze_cmd(sub: argparse._SubParsersAction) -> None:
                    help="Percentiles for percentile calibration (default: 5 10 15 20)")
     p.add_argument("--suppression-duration", type=int, default=60,
                    help="Suppression window (in samples) for the suppressed FPR/hour metric")
+    p.add_argument("--ma-segmentation", choices=["label", "time"], default="label",
+                   help="How MA regions are defined in the calibration sweep. 'label' (default, legacy) "
+                        "uses the true label (ground truth). 'time' uses label-free recording-time "
+                        "contiguity from window meta; writes to <run_dir>/analysis_ma_time unless "
+                        "--out-dir is given, and skips the per-split summary sweep.")
     p.set_defaults(func=run_analyze_cmd)
 
 
@@ -42,6 +47,7 @@ def run_analyze_cmd(args: argparse.Namespace) -> None:
     suppression_duration = getattr(args, "suppression_duration", None)
     sampling_period = getattr(args, "sampling_period", 5.0)
     no_plots = getattr(args, "no_plots", False)
+    ma_segmentation = getattr(args, "ma_segmentation", "label")
 
     if not no_plots:
         from seizure_pred.analysis.nested_predictions import (
@@ -104,15 +110,19 @@ def run_analyze_cmd(args: argparse.Namespace) -> None:
                     )
 
         # Per-split MA x threshold sweep + Pareto (works on predictions.jsonl)
-        from seizure_pred.analysis.summary import analyze_multi_split_summary
-        analyze_multi_split_summary(
-            run_dir=args.run_dir,
-            out_dir=args.out_dir,
-            ma_windows=ma_windows,
-            thresholds=thresholds_list,
-            sampling_period=sampling_period,
-            make_plots=not no_plots,
-        )
+        if ma_segmentation == "time":
+            print("[analysis] --ma-segmentation time: skipping per-split summary sweep "
+                  "(it segments by true label); using the calibration sweep only")
+        else:
+            from seizure_pred.analysis.summary import analyze_multi_split_summary
+            analyze_multi_split_summary(
+                run_dir=args.run_dir,
+                out_dir=args.out_dir,
+                ma_windows=ma_windows,
+                thresholds=thresholds_list,
+                sampling_period=sampling_period,
+                make_plots=not no_plots,
+            )
 
         # Calibration x MA x threshold sweep (requires raw_predictions.pkl from nested CV)
         if os.path.exists(os.path.join(args.run_dir, "raw_predictions.pkl")):
@@ -127,6 +137,7 @@ def run_analyze_cmd(args: argparse.Namespace) -> None:
                 sampling_period=sampling_period,
                 suppression_duration=suppression_duration,
                 make_plots=not no_plots,
+                ma_segmentation=ma_segmentation,
             )
         from seizure_pred.analysis.resources import summarize_resource_metrics
         summarize_resource_metrics(args.run_dir, out_dir=args.out_dir)

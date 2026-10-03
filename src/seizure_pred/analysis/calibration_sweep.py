@@ -40,7 +40,9 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from .metrics import moving_average_segmented, clinical_metrics
+from .metrics import (
+    moving_average_segmented, moving_average_by_segments, segment_ids_from_meta, clinical_metrics,
+)
 from ..inference.calibration import ProbabilityCalibrator
 
 try:
@@ -211,12 +213,23 @@ def analyze_nested_calibration(
     sampling_period: float = 5.0,
     suppression_duration: Optional[int] = None,
     make_plots: bool = True,
+    ma_segmentation: str = "label",
 ) -> Dict[str, Any]:
     """Run the calibration x MA x threshold sweep over a nested-CV run.
 
     Reads ``<run_dir>/raw_predictions.pkl`` and writes reports/CSVs/plots under
-    ``<out_dir>`` (default ``<run_dir>/analysis``).
+    ``<out_dir>`` (default ``<run_dir>/analysis``; ``<run_dir>/analysis_ma_time`` when
+    ``ma_segmentation="time"``).
+
+    ``ma_segmentation``: ``"label"`` (default, legacy) smooths within runs of the TRUE
+    label, which uses ground truth. ``"time"`` smooths within recording-time-contiguous
+    segments derived from the stored window meta (label-free; see
+    ``segment_ids_from_meta``). If the pickle lacks the needed meta, time mode logs a
+    message and returns ``status="missing_meta_for_time_segmentation"`` without
+    writing anything (it never falls back to labels silently).
     """
+    if ma_segmentation not in ("label", "time"):
+        raise ValueError(f"ma_segmentation must be 'label' or 'time', got {ma_segmentation!r}")
     run_path = Path(run_dir)
     pkl_path = run_path / "raw_predictions.pkl"
     if not pkl_path.exists():
@@ -226,9 +239,8 @@ def analyze_nested_calibration(
         cv_results = pickle.load(f)
 
     if out_dir is None:
-        out_dir = str(run_path / "analysis")
+        out_dir = str(run_path / ("analysis_ma_time" if ma_segmentation == "time" else "analysis"))
     out_path = Path(out_dir)
-    out_path.mkdir(parents=True, exist_ok=True)
 
     if calibration_methods is None:
         calibration_methods = ["none", "percentile", "beta", "isotonic", "temperature"]
@@ -260,7 +272,18 @@ def analyze_nested_calibration(
         min_len = min(test_probs_stack.shape[1], y_test.size)
         test_probs_stack = test_probs_stack[:, :min_len]
         y_test = y_test[:min_len]
+        seg_ids = None
+        if ma_segmentation == "time":
+            meta = inner[0].get("test_meta")
+            seg_ids = segment_ids_from_meta(meta[:min_len] if meta is not None else None,
+                                            max_gap=1.5 * sampling_period)
+            if seg_ids is None or len(seg_ids) != min_len:
+                print("[calibration] ma_segmentation='time' requested but raw_predictions.pkl has no "
+                      "usable event_id/start_time_in_event test_meta (old pickle?); NOT falling back "
+                      "to label segmentation. Re-run analysis with --ma-segmentation label or re-train.")
+                return {"status": "missing_meta_for_time_segmentation", "run_dir": str(run_path)}
         fold_data.append({
+            "seg_ids": seg_ids,
             "test_probs_stack": test_probs_stack,
             "val_probs_list": val_probs_list,
             "val_labels_list": val_labels_list,
@@ -307,7 +330,10 @@ def analyze_nested_calibration(
             for threshold in list(thresholds) + (["val"] if use_val else []):
                 fold_metrics = []
                 for fd, (y_test, cal_probs) in zip(fold_data, fold_calibrated):
-                    smoothed = moving_average_segmented(cal_probs, y_test, window)
+                    if ma_segmentation == "time":
+                        smoothed = moving_average_by_segments(cal_probs, fd["seg_ids"], window)
+                    else:
+                        smoothed = moving_average_segmented(cal_probs, y_test, window)
                     thr = fd["val_threshold"] if threshold == "val" else threshold
                     y_pred = (smoothed >= thr).astype(int)
                     clin = clinical_metrics(y_test, y_pred, sampling_period=sampling_period,
@@ -363,6 +389,7 @@ def analyze_nested_calibration(
                 else:
                     sweep_results.append(row)
 
+    out_path.mkdir(parents=True, exist_ok=True)
     summary_df = pd.DataFrame(sweep_results)
 
     # ---- Pareto frontier (maximize sensitivity, minimize fpr_per_hour) ----
@@ -410,6 +437,7 @@ def analyze_nested_calibration(
         "n_outer_folds": len(fold_data),
         "calibration_methods": calibration_methods,
         "ma_windows": ma_windows,
+        "ma_segmentation": ma_segmentation,
         "thresholds": thresholds,
         "percentiles": percentiles,
         "n_variants": len(sweep_results),

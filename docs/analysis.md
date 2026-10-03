@@ -124,3 +124,15 @@ sampling_period=5.0, suppression_duration=None)`:
 
 `moving_average_segmented(probs, y, window)` smooths within contiguous
 equal-label regions only (no leakage across label boundaries).
+
+**Label leak caveat.** That segmentation uses the ground-truth label, which a
+deployed system does not have; with shuffled interictal test windows
+(`cv.outer_shuffle`) it also averages random, non-adjacent windows. The opt-in
+`seizure-pred analyze --ma-segmentation time` (calibration sweep only; default
+`label` = unchanged) instead uses `moving_average_by_segments` with segments from
+`segment_ids_from_meta`: a new segment starts when `event_id` changes or
+`start_time_in_event` does not advance by `0 < dt <= 1.5 * sampling_period`. It reads
+no labels. Results go to `<run_dir>/analysis_ma_time/` (unless `--out-dir`), so the
+default `analysis/` files are untouched; the per-split summary sweep is skipped in
+this mode. Old pickles without `event_id`/`start_time_in_event` in `test_meta`
+abort the time mode with a logged message (no silent label fallback).

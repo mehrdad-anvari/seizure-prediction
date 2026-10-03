@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
@@ -164,6 +164,50 @@ def moving_average_segmented(probs: np.ndarray, y: np.ndarray, window_size: int 
                 smoothed_probs[i] = np.mean(probs[win_start:win_end])
 
     return smoothed_probs
+
+
+def segment_ids_from_meta(meta: Any, max_gap: float) -> Optional[np.ndarray]:
+    """Label-free segment ids from per-window metadata (recording-time contiguity).
+
+    A new segment starts whenever a window is not the time-successor of the previous
+    one: different ``event_id``, or ``start_time_in_event`` not increasing, or a gap
+    larger than ``max_gap`` seconds. Never reads the label. Returns ``None`` if the
+    metadata lacks ``event_id`` / ``start_time_in_event`` for any window.
+    """
+    if meta is None or len(meta) == 0:
+        return None
+    ids = np.zeros(len(meta), dtype=np.int64)
+    prev_ev = prev_t = None
+    seg = 0
+    for i, m in enumerate(meta):
+        if not isinstance(m, dict) or m.get("event_id") is None or m.get("start_time_in_event") is None:
+            return None
+        ev, t = m["event_id"], float(m["start_time_in_event"])
+        if i > 0 and (ev != prev_ev or not (0.0 < t - prev_t <= max_gap)):
+            seg += 1
+        ids[i] = seg
+        prev_ev, prev_t = ev, t
+    return ids
+
+
+def moving_average_by_segments(probs: np.ndarray, segment_ids: np.ndarray, window_size: int = 3) -> np.ndarray:
+    """Trailing moving average restricted to runs of equal ``segment_ids``.
+
+    Same smoothing as :func:`moving_average_segmented` (expanding window at segment
+    start) but the regions come from ``segment_ids`` (label-free), not from labels.
+    """
+    probs = np.asarray(probs)
+    if len(probs) < window_size or window_size <= 1:
+        return probs.copy()
+    segment_ids = np.asarray(segment_ids)
+    out = probs.copy().astype(float)
+    start = 0
+    for i in range(1, len(segment_ids) + 1):
+        if i == len(segment_ids) or segment_ids[i] != segment_ids[i - 1]:
+            for j in range(start, i):
+                out[j] = np.mean(probs[max(start, j - window_size + 1): j + 1])
+            start = i
+    return out
 
 
 def clinical_metrics(
