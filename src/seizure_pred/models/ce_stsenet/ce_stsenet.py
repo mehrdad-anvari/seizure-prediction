@@ -218,7 +218,7 @@ class Input_Layer(nn.Module):
 
     
 class Classification_Net(nn.Module):
-    def __init__(self, inc, outc):
+    def __init__(self, inc, outc, dropout=0.0):
         super(Classification_Net, self).__init__()
         self.conv1 = nn.Conv2d(in_channels = 5*inc, 
                                out_channels = inc, 
@@ -234,6 +234,8 @@ class Classification_Net(nn.Module):
                                padding = (0, 0), 
                                bias = False)
         self.elu = nn.ELU(inplace = True)
+        # Only created when requested so the default module tree is unchanged.
+        self.dropout = nn.Dropout(p = float(dropout)) if float(dropout) > 0 else None
         self.initialize()
 
     def initialize(self):
@@ -246,7 +248,7 @@ class Classification_Net(nn.Module):
     
     def forward(self, x):
         output1 = self.bn1(self.conv1(x))
-        output = self.conv2(output1)
+        output = self.conv2(output1 if self.dropout is None else self.dropout(output1))
         return output, output1
 
 
@@ -296,7 +298,7 @@ class MultiLevel_Spectral(nn.Module):
         return out[:, 0::2,:, :], out[:, 1::2, :, :]
 
 class CE_stSENet(nn.Module):
-    def __init__(self, in_channels, num_classes, si=128, outc_max = 128, num_of_layer = 1):
+    def __init__(self, in_channels, num_classes, si=128, outc_max = 128, num_of_layer = 1, dropout = 0.0):
         super(CE_stSENet, self).__init__()  
         inc = in_channels
         class_num = num_classes
@@ -318,7 +320,7 @@ class CE_stSENet(nn.Module):
         self.theta_x = ST_SENet(inc = (4*int(math.pow(2, num_of_layer))+inc)*2, outc_max = outc_max, kernel_size = 3)
         self.delta_x = ST_SENet(inc = (4*int(math.pow(2, num_of_layer))+inc)*2, outc_max = outc_max, kernel_size = 3)        
         self.reshape = nn.AdaptiveAvgPool2d(1)
-        self.conv_classifier = Classification_Net(inc = outc_max//4, outc = class_num)
+        self.conv_classifier = Classification_Net(inc = outc_max//4, outc = class_num, dropout = dropout)
         
     def forward(self, x, if_pooling = 1):    
         x = x.unsqueeze(2)

@@ -72,9 +72,39 @@ ensembles the inner folds. Defaults:
 `calibrate_ensemble(test_probs_stack, val_probs_list, val_labels_list, val_aucs,
 method=...)` fits per-fold and AUC-weight ensembles.
 
+### Additional per-variant metrics
+
+`variant_summary.csv` also carries `mean_/std_` columns (existing columns are unchanged):
+
+- `auprc` — average precision of the smoothed probabilities on the outer test set
+  (natural prevalence).
+- `balanced_f1`, `balanced_precision`, `balanced_recall`, `balanced_specificity` —
+  window-level metrics on a **class-balanced** test set, computed deterministically
+  by reweighting (no subsampling): each interictal window gets weight `w = n_pos / n_neg`
+  and each preictal window weight 1, so both classes have equal total weight. Weighted
+  `precision = TP / (TP + w*FP)`, `recall = TP / (TP + FN)`,
+  `specificity = TN / (TN + FP)` (unchanged by the weighting), and `F1` from the weighted
+  precision/recall. Folds with a single class give NaN (excluded from the mean); a fold
+  with no positive predictions has precision 0 (so F1 0).
+
+### Inner-validation threshold (`val`)
+
+The fixed-threshold sweep is evaluated on the test set itself. To avoid that peeking,
+each outer split also gets a validation-derived threshold: for each inner fold, the
+threshold (grid 0.01..0.99) maximizing window-level F1 on that fold's own validation
+predictions (original windows only) is found; the AUC-weighted mean over inner folds is
+the outer split's threshold. It is stored as `val_threshold` per outer fold in
+`raw_predictions.pkl`; older pickles without it are handled by recomputing it from the
+saved inner `val_probs`/`val_labels`. It is derived from uncalibrated validation
+probabilities, so it is mainly meaningful for calibration `none`. Results for every
+calibration x MA window are written to `variant_summary_val_threshold.csv` (same columns
+plus `mean_/std_threshold_used`), kept separate so `config_threshold` in
+`variant_summary.csv` stays numeric. If no inner validation predictions are available the
+`val` variants are skipped with a logged note.
+
 ### Outputs (under `<run>/analysis/`)
 
-`variant_summary.csv`, `pareto_optimal_variants.csv`,
+`variant_summary.csv`, `variant_summary_val_threshold.csv`, `pareto_optimal_variants.csv`,
 `best_variants_{auc,sensitivity,f1,fpr_per_hour}.csv`,
 `calibration_comparison.csv`, `ma_window_comparison.csv`,
 `threshold_comparison.csv`, `calibration_summary.json`, and plots under

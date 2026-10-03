@@ -25,7 +25,9 @@ Every row also carries `schema_version` and `written_at`.
   `<split_dir>/predict_split_<k>/predictions.jsonl`).
 - Nested CV: per outer split `<stamp>/split_<k>/predictions.jsonl` holds the
   AUC-weight-ensembled test predictions, and `raw_predictions.pkl` holds the
-  raw per-inner-fold val/test arrays used by the calibration sweep.
+  raw per-inner-fold val/test arrays used by the calibration sweep, plus a
+  per-outer-fold `val_threshold` (AUC-weighted mean of inner-fold val F1-optimal
+  thresholds; absent in older pickles).
 
 ## Consumers
 

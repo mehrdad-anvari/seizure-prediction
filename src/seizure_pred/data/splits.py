@@ -207,10 +207,15 @@ def split_into_strata(indices, N=5, M=10):
     import math
     max_M = math.ceil(len(indices) / (N + 1))
     if M > max_M:
-        raise ValueError(
-            f"M={M} is too large for event length={len(indices)} and N={N} folds. "
-            f"Maximum valid M is {max_M}."
+        import warnings
+        max_M = max(max_M, 1)
+        warnings.warn(
+            f"M={M} is too large for event length={len(indices)} and N={N} folds; "
+            f"clamping M to the maximum valid value {max_M}.",
+            UserWarning,
+            stacklevel=2,
         )
+        M = max_M
 
     indices = np.sort(indices)
     if len(indices) == 0:

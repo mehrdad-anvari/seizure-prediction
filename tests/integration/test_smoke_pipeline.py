@@ -348,3 +348,14 @@ def test_smoke_nested_cv_predict_and_analyze():
         assert os.path.exists(os.path.join(stamp_dir, "split_1", "analysis", "report.json"))
 
 
+
+        # 4. New nested-CV outputs: stored val threshold + balanced/AUPRC columns
+        import pickle
+        import pandas as pd
+        with open(os.path.join(stamp_dir, "raw_predictions.pkl"), "rb") as f:
+            raw = pickle.load(f)
+        assert all("val_threshold" in of for of in raw["outer_folds"])
+        summary_csv = os.path.join(stamp_dir, "analysis", "variant_summary.csv")
+        if os.path.exists(summary_csv):
+            cols = pd.read_csv(summary_csv).columns
+            assert "mean_auprc" in cols and "mean_balanced_f1" in cols

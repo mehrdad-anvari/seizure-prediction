@@ -187,7 +187,7 @@ class TrainConfig:
     device: str = "cuda"
     epochs: int = 50
     grad_clip_norm: Optional[float] = 1.0
-    amp: bool = True
+    amp: bool = False
     log_every: int = 25
     val_every: int = 1
     save_dir: str = "runs"

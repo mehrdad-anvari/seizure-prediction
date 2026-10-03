@@ -60,6 +60,93 @@ def _auc(y_true: np.ndarray, prob: np.ndarray) -> float:
     return float(binary_auc(prob, y_true))
 
 
+def _auprc(y_true: np.ndarray, prob: np.ndarray) -> float:
+    """Average precision (AUPRC); NaN if undefined (single class / no sklearn)."""
+    try:
+        from sklearn.metrics import average_precision_score
+
+        if len(np.unique(y_true)) < 2:
+            return float("nan")
+        return float(average_precision_score(y_true, prob))
+    except Exception:
+        return float("nan")
+
+
+def balanced_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
+    """Class-balanced window-level precision/recall/F1/specificity.
+
+    Deterministic reweighting instead of subsampling: every interictal window gets
+    weight ``n_pos / n_neg`` and every preictal window weight 1, so both classes
+    carry equal total weight (equivalent to evaluating at 50% prevalence).
+    Returns NaNs if either class is absent.
+    """
+    y_true = np.asarray(y_true).astype(int)
+    y_pred = np.asarray(y_pred).astype(int)
+    n_pos = int((y_true == 1).sum())
+    n_neg = int((y_true == 0).sum())
+    nan = float("nan")
+    if n_pos == 0 or n_neg == 0:
+        return {"balanced_f1": nan, "balanced_precision": nan,
+                "balanced_recall": nan, "balanced_specificity": nan}
+    w0 = n_pos / n_neg
+    tp = float(((y_true == 1) & (y_pred == 1)).sum())
+    fn = float(((y_true == 1) & (y_pred == 0)).sum())
+    fp = w0 * float(((y_true == 0) & (y_pred == 1)).sum())
+    tn = w0 * float(((y_true == 0) & (y_pred == 0)).sum())
+    prec = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    rec = tp / (tp + fn)
+    spec = tn / (tn + fp)
+    f1 = 2 * prec * rec / (prec + rec) if (prec + rec) > 0 else 0.0
+    return {"balanced_f1": f1, "balanced_precision": prec,
+            "balanced_recall": rec, "balanced_specificity": spec}
+
+
+_VAL_THRESHOLD_GRID = np.round(np.arange(0.01, 1.0, 0.01), 2)
+
+
+def best_f1_threshold(val_probs: np.ndarray, val_labels: np.ndarray,
+                      grid: Optional[np.ndarray] = None) -> float:
+    """Threshold maximizing window-level F1 on one validation set (ties -> closest to 0.5)."""
+    probs = np.asarray(val_probs, dtype=np.float64)
+    labels = np.asarray(val_labels).astype(int)
+    grid = _VAL_THRESHOLD_GRID if grid is None else np.asarray(grid, dtype=np.float64)
+    if probs.size == 0 or labels.sum() == 0:
+        return float("nan")
+    best_t, best_f1 = float("nan"), -1.0
+    for t in grid:
+        pred = probs >= t
+        tp = float((pred & (labels == 1)).sum())
+        fp = float((pred & (labels == 0)).sum())
+        fn = float((~pred & (labels == 1)).sum())
+        f1 = 2 * tp / (2 * tp + fp + fn) if (2 * tp + fp + fn) > 0 else 0.0
+        if f1 > best_f1 + 1e-12 or (abs(f1 - best_f1) <= 1e-12 and abs(t - 0.5) < abs(best_t - 0.5)):
+            best_t, best_f1 = float(t), f1
+    return best_t
+
+
+def select_val_threshold(inner_folds: List[Dict[str, Any]]) -> float:
+    """AUC-weighted mean of per-inner-fold F1-optimal validation thresholds.
+
+    Uses each inner fold's ``val_probs``/``val_labels`` (original windows only, as
+    saved by nested training). Returns NaN if no fold yields a threshold.
+    """
+    ths, ws = [], []
+    for inf in inner_folds:
+        if "val_probs" not in inf or "val_labels" not in inf:
+            continue
+        t = best_f1_threshold(np.asarray(inf["val_probs"]), np.asarray(inf["val_labels"]))
+        if np.isnan(t):
+            continue
+        ths.append(t)
+        ws.append(float(inf.get("best_val_auc", 0.5)))
+    if not ths:
+        return float("nan")
+    ws_arr = np.clip(np.asarray(ws, dtype=np.float64), 0, None)
+    if not np.isfinite(ws_arr).all() or ws_arr.sum() <= 0:
+        ws_arr = np.ones(len(ths))
+    return float(np.average(ths, weights=ws_arr))
+
+
 def _ensemble_auc_weighted(test_probs_stack: np.ndarray, val_aucs: np.ndarray) -> np.ndarray:
     weights = np.asarray(val_aucs, dtype=np.float64)
     if weights.size == 0 or not np.isfinite(weights).any() or weights.sum() <= 0:
@@ -100,6 +187,17 @@ def _calibrate_fold(
         weights = np.clip(weights, 0, None)
         weights = weights / weights.sum()
     return np.tensordot(weights, calibrated_stack, axes=1)
+
+
+def _stored_or_computed_val_threshold(outer_fold: Dict[str, Any], inner: List[Dict[str, Any]]) -> float:
+    """Val-derived threshold stored in the pickle, else recomputed (older pickles)."""
+    t = outer_fold.get("val_threshold")
+    if t is not None and np.isfinite(t):
+        return float(t)
+    try:
+        return select_val_threshold(inner)
+    except Exception:
+        return float("nan")
 
 
 def analyze_nested_calibration(
@@ -168,6 +266,7 @@ def analyze_nested_calibration(
             "val_labels_list": val_labels_list,
             "val_aucs": val_aucs,
             "y_test": y_test,
+            "val_threshold": _stored_or_computed_val_threshold(of, inner),
         })
 
     if not fold_data:
@@ -182,7 +281,13 @@ def analyze_nested_calibration(
         else:
             cal_variants.append((m, None))
 
+    # Inner-validation threshold ("val"): needs a threshold for every outer fold.
+    use_val = all(np.isfinite(fd["val_threshold"]) for fd in fold_data)
+    if not use_val:
+        print("[calibration] val-derived threshold unavailable (no usable inner validation "
+              "predictions); skipping 'val' threshold variants")
     sweep_results: List[Dict[str, Any]] = []
+    val_results: List[Dict[str, Any]] = []
     for method, percentile in cal_variants:
         cal_label = method if percentile is None else f"percentile_p{percentile}"
         # Calibrate per fold (returns n_test probs per fold)
@@ -199,11 +304,12 @@ def analyze_nested_calibration(
             fold_calibrated.append((fd["y_test"], cal_probs))
 
         for window in ma_windows:
-            for threshold in thresholds:
+            for threshold in list(thresholds) + (["val"] if use_val else []):
                 fold_metrics = []
-                for y_test, cal_probs in fold_calibrated:
+                for fd, (y_test, cal_probs) in zip(fold_data, fold_calibrated):
                     smoothed = moving_average_segmented(cal_probs, y_test, window)
-                    y_pred = (smoothed >= threshold).astype(int)
+                    thr = fd["val_threshold"] if threshold == "val" else threshold
+                    y_pred = (smoothed >= thr).astype(int)
                     clin = clinical_metrics(y_test, y_pred, sampling_period=sampling_period,
                                             suppression_duration=suppression_duration)
                     try:
@@ -219,10 +325,13 @@ def analyze_nested_calibration(
                     f1 = 2 * prec * rec / max(1e-12, prec + rec)
                     fold_metrics.append({
                         "auc": auc,
+                        "auprc": _auprc(y_test, smoothed),
+                        **balanced_metrics(y_test, y_pred),
                         "f1": float(f1),
                         "sensitivity": clin["sensitivity"],
                         "fpr_per_hour": clin["fpr_per_hour"],
                         "fpr_per_hour_suppressed": clin["fpr_per_hour_suppressed"],
+                        "threshold_used": float(thr),
                     })
 
                 def _agg(key):
@@ -235,7 +344,7 @@ def analyze_nested_calibration(
                 mean_fpr, std_fpr = _agg("fpr_per_hour")
                 mean_fpr_sup, std_fpr_sup = _agg("fpr_per_hour_suppressed")
 
-                sweep_results.append({
+                row = {
                     "calibration": cal_label,
                     "config_calibration": cal_label,
                     "config_ma_window": window,
@@ -245,7 +354,14 @@ def analyze_nested_calibration(
                     "mean_sensitivity": mean_sens, "std_sensitivity": std_sens,
                     "mean_fpr_per_hour": mean_fpr, "std_fpr_per_hour": std_fpr,
                     "mean_fpr_per_hour_suppressed": mean_fpr_sup, "std_fpr_per_hour_suppressed": std_fpr_sup,
-                })
+                }
+                for key in ("auprc", "balanced_f1", "balanced_precision", "balanced_recall", "balanced_specificity"):
+                    row[f"mean_{key}"], row[f"std_{key}"] = _agg(key)
+                if threshold == "val":
+                    row["mean_threshold_used"], row["std_threshold_used"] = _agg("threshold_used")
+                    val_results.append(row)
+                else:
+                    sweep_results.append(row)
 
     summary_df = pd.DataFrame(sweep_results)
 
@@ -267,6 +383,9 @@ def analyze_nested_calibration(
 
     # ---- Write CSVs ----
     summary_df.to_csv(out_path / "variant_summary.csv", index=False)
+    if val_results:
+        # Kept separate so variant_summary.csv's config_threshold stays numeric.
+        pd.DataFrame(val_results).to_csv(out_path / "variant_summary_val_threshold.csv", index=False)
     pareto_df.to_csv(out_path / "pareto_optimal_variants.csv", index=False)
     for metric in ("auc", "sensitivity", "f1", "fpr_per_hour"):
         col = f"mean_{metric}" if metric != "fpr_per_hour" else "mean_fpr_per_hour"
@@ -294,6 +413,7 @@ def analyze_nested_calibration(
         "thresholds": thresholds,
         "percentiles": percentiles,
         "n_variants": len(sweep_results),
+        "val_thresholds_per_outer_fold": [fd["val_threshold"] for fd in fold_data] if use_val else None,
         "pareto_variants": pareto_df.to_dict(orient="records"),
     }
     with open(out_path / "calibration_summary.json", "w", encoding="utf-8") as f:

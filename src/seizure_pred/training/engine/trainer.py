@@ -108,6 +108,15 @@ class Trainer:
         self.writer = artifact_writer or ArtifactWriter(run_dir)
         self.callbacks = CallbackList(callbacks or [])
 
+        # Mixed precision: only on CUDA; on CPU fall back to fp32 with a warning.
+        self.use_amp = bool(getattr(cfg, "amp", False))
+        if self.use_amp and self.device.type != "cuda":
+            logging.getLogger("seizure_pred").warning(
+                "amp=true requested but device is '%s'; running in float32.", self.device.type
+            )
+            self.use_amp = False
+        self.scaler = torch.amp.GradScaler("cuda", enabled=self.use_amp)
+
         _validate_monitor(cfg)
 
         os.makedirs(self.run_dir, exist_ok=True)
@@ -293,7 +302,9 @@ class Trainer:
             y = y.to(self.device).float().view(-1)
 
             self.optimizer.zero_grad(set_to_none=True)
-            logits = self._to_binary_logits(self.model(x))
+            with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
+                raw = self.model(x)
+            logits = self._to_binary_logits(raw).float()
             
             if self.loss_fn.__class__.__name__ == "PreictalWeightedLoss":
                 temporal_weights = self._extract_temporal_weights(meta).to(self.device)
@@ -301,12 +312,14 @@ class Trainer:
             else:
                 loss = self.loss_fn(logits, y)
                 
-            loss.backward()
+            self.scaler.scale(loss).backward()
 
             if self.cfg.grad_clip_norm:
+                self.scaler.unscale_(self.optimizer)
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), float(self.cfg.grad_clip_norm))
 
-            self.optimizer.step()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
 
             # scheduler step (step mode)
             if self.scheduler is not None and getattr(self.cfg.sched, "step", "epoch") == "step":
@@ -348,7 +361,9 @@ class Trainer:
             x = x.to(self.device)
             y = y.to(self.device).float().view(-1)
 
-            logits = self._to_binary_logits(self.model(x))
+            with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
+                raw = self.model(x)
+            logits = self._to_binary_logits(raw).float()
             loss = self.loss_fn(logits, y)
 
             batch_meta = meta if isinstance(meta, list) else [meta]

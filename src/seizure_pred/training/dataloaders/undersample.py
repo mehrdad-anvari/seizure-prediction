@@ -33,6 +33,10 @@ class UnderSampledDataLoader:
     batch_size: int = 32
     shuffle: bool = True
     random_state: int = 0
+    # Drop a trailing batch of size 1 (only when shuffle=True, i.e. training):
+    # BatchNorm cannot run in train mode on a single sample. Eval loaders
+    # (shuffle=False) never drop data.
+    drop_last_singleton: bool = True
 
     def __post_init__(self):
         self.rng = np.random.RandomState(self.random_state)
@@ -80,7 +84,8 @@ class UnderSampledDataLoader:
     def __iter__(self):
         self.all_indices = self._sample_epoch_indices()
 
-        for i in range(0, len(self.all_indices), self.batch_size):
+        n_batches = self._num_batches(len(self.all_indices))
+        for i in range(0, n_batches * self.batch_size, self.batch_size):
             batch_indices = self.all_indices[i : i + self.batch_size]
             batch_x: List[torch.Tensor] = []
             batch_y: List[torch.Tensor] = []
@@ -92,8 +97,14 @@ class UnderSampledDataLoader:
                 batch_meta.append(meta)
             yield torch.stack(batch_x), torch.stack(batch_y), batch_meta
 
+    def _num_batches(self, n: int) -> int:
+        n_batches = (n + self.batch_size - 1) // self.batch_size
+        if self.drop_last_singleton and self.shuffle and n % self.batch_size == 1 and n_batches > 0:
+            n_batches -= 1
+        return n_batches
+
     def __len__(self):
-        return (len(self.all_indices) + self.batch_size - 1) // self.batch_size
+        return self._num_batches(len(self.all_indices))
 
 
 @DATALOADERS.register("undersample", help="Epoch-wise undersampling loader (pos + matched neg)")

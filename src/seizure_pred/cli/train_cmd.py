@@ -587,6 +587,9 @@ def run_nested_cv(cfg: TrainConfig, dataset: Any, stamp: str, args: argparse.Nam
                 except Exception:
                     pass
                     
+            # Val-derived threshold (no test peeking): AUC-weighted mean of per-inner-fold F1-optimal thresholds
+            from seizure_pred.analysis.calibration_sweep import select_val_threshold
+            fold_data['val_threshold'] = select_val_threshold(fold_data['inner_folds'])
             cv_results['outer_folds'].append(fold_data)
             
             # Perform ensembled prediction for the outer fold
