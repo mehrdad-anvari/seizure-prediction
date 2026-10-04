@@ -7,7 +7,7 @@ dependencies (MNE). Preprocessing utilities live in seizure_pred.preprocessing.
 import torch
 import numpy as np
 import pandas as pd
-from typing import Callable, List, Literal
+from typing import Callable, List, Literal, Optional, Sequence
 import glob
 import os
 from seizure_pred.data.uint16 import invert_uint16_scaling
@@ -26,6 +26,7 @@ class CHBMITDataset(BaseDataset):
         suffix: str = "fd_5s_szx5_prex5",
         task: Literal["prediction", "detection"] = "prediction",
         print_events: bool = True,
+        sessions: Optional[Sequence[str]] = None,
     ):
         """
         This class does three things:
@@ -42,6 +43,11 @@ class CHBMITDataset(BaseDataset):
             dataset_dir (string): path to the processed BIDS_CHB-MIT dataset
             use_uint16 (boolean): if true uses uint16 format
             subject_id (str): use "*" to include all subjects,
+            sessions (sequence of str, optional): restrict to these BIDS sessions, e.g.
+                ["ses-01"] or ["01"] (both forms accepted). Default None loads all
+                sessions. Session numbering in group ids ("<event_id>_<k>") always refers
+                to the position among ALL sorted sessions, so it does not change when
+                filtering (ses-01 -> k=0, ses-02 -> k=1, ...).
         """
         # Task settings
         if task == "detection":
@@ -67,7 +73,25 @@ class CHBMITDataset(BaseDataset):
             f"*{suffix}_uint16.npz" if use_uint16 else f"*{suffix}_float.npz"
         )
         search_pattern = os.path.join(subject_dir, "ses-*", "eeg", suffix_pattern)
-        ses_paths = glob.glob(search_pattern)
+        ses_paths = sorted(glob.glob(search_pattern))
+        ses_indices = list(range(len(ses_paths)))
+        if sessions is not None:
+            if isinstance(sessions, str):
+                sessions = [sessions]
+            wanted = []
+            for s_name in sessions:
+                s_name = str(s_name).strip()
+                wanted.append(s_name if s_name.startswith("ses-") else f"ses-{s_name}")
+            ses_names = [os.path.basename(os.path.dirname(os.path.dirname(p))) for p in ses_paths]
+            missing = [w for w in wanted if w not in ses_names]
+            if missing:
+                raise ValueError(
+                    f"Requested sessions {missing} have no file matching {search_pattern}; "
+                    f"available sessions: {ses_names}"
+                )
+            keep = [k for k, n in enumerate(ses_names) if n in wanted]
+            ses_paths = [ses_paths[k] for k in keep]
+            ses_indices = keep
         print(f"Found {len(ses_paths)} session files using pattern: {search_pattern}")
 
         if len(ses_paths) == 0:
@@ -78,7 +102,7 @@ class CHBMITDataset(BaseDataset):
         all_X, all_y, all_group_ids, all_metadata = [], [], [], []
 
         # Load each session
-        for i, ses_path in enumerate(ses_paths):
+        for i, ses_path in zip(ses_indices, ses_paths):
             data = np.load(ses_path, allow_pickle=True)
 
             # Load X

@@ -147,6 +147,8 @@ Core parameters are taken from `DataConfig`:
 Additional dataset-specific arguments can be passed through `cfg.kwargs`.
 If `online_transforms` or `offline_transforms` is a list of strings, the builder resolves them through the transform registry.
 
+`sessions` (optional, default all sessions) restricts loading to specific BIDS sessions, e.g. `data.kwargs: {sessions: ["ses-01"]}` (`["01"]` also accepted). Useful for sub-01, where `ses-02` is the original chb21 (same patient, recorded 1.5 years later) and papers report chb01 only. Group ids (`<event_id>_<k>`) keep `k` = position among all sorted sessions, so filtering does not renumber them. A requested session without a matching file raises `ValueError`.
+
 ### `synthetic`
 
 Builder: `seizure_pred.training.datasets.synthetic.build_synthetic`
