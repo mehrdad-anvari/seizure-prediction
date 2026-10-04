@@ -1,0 +1,92 @@
+# Full-dataset run RUN-002 (docs/studies.md -> "Full-Dataset Runs").
+#
+# CE-stSENet model evaluated on every subject using the RUN-001 / STUDY-007
+# training protocol with exponential LR decay (gamma: 0.95) and early stopping.
+#
+# Uses `robust_norm` as offline transform since CE-stSENet performs internal
+# multi-level wavelet decomposition on the raw time series (see docs/models.md).
+#
+# `run_name` doubles as the run group: examples/scripts/run_full_dataset.py
+# writes one run per subject to <save_dir>/<run_name>/sub-<ID>/<timestamp>/.
+#
+# This file is the chronological protocol behind runs/run002_ce_stsenet.
+# The interictal-shuffled variant (runs/run002_ce_stsenet_shuffle) used the same
+# config with run_name run002_ce_stsenet_shuffle and
+#   cv.outer_shuffle: true, cv.inner_shuffle: true, cv.inner_mode: "split".
+# In that variant only interictal windows are shuffled across outer folds; each
+# outer test fold still holds out a whole preictal event, and MA>1 results from
+# the default (label-segmented) analysis are inflated - use
+# `seizure-pred analyze --ma-segmentation time` (see
+# docs/reports/2026-10-04_pipeline_audit.md).
+#
+# amp: false reproduces the recorded results: before commit 7f12722 the `amp`
+# flag was never read, so both runs trained in fp32.
+task: prediction
+seed: 42
+device: cuda
+epochs: 50
+amp: false
+grad_clip_norm: 1.0
+log_every: 10
+save_dir: runs
+run_name: run002_ce_stsenet
+
+data:
+  name: chbmit_npz
+  dataset_dir: data/BIDS_CHB-MIT
+  subject_id: "01"
+  task: prediction
+  batch_size: 32
+  num_workers: 4
+  use_uint16: false
+  dataloader_type: "undersample"
+  suffix: _fd_5s_prex5
+  kwargs:
+    offline_transforms: ["robust_norm"]
+
+# Select best epoch by validation AUC for each inner fold.
+monitor: auc
+monitor_mode: max
+
+# Nested CV configuration block
+cv:
+  outer_method: "LOO"             # Outer CV method: LOO (Leave-One-Out) or KFold
+  outer_shuffle: false            # chronological; true = shuffle interictal across folds
+  outer_n_fold: 8                 # Number of outer folds (ignored for LOO)
+  outer_mode: "split"             # Outer custom KFold splitting mode
+  outer_M: 10                     # Outer custom KFold stratum size
+  inner_method: "KFold"           # Inner CV method: LOO or KFold
+  inner_n_fold: 5                 # Number of inner folds
+  inner_shuffle: false
+  inner_mode: "per_event_strata"  # Inner custom KFold splitting mode
+  inner_M: 10                     # Inner custom KFold stratum size (clamped per event if too large)
+  random_state: 42                # Splitting random seed
+
+model:
+  name: ce_stsenet
+  num_classes: 1
+  in_channels: 18
+  kwargs: {}
+
+loss:
+  name: bce_logits
+  kwargs: {}
+
+optim:
+  name: adamw
+  lr: 0.0001
+  weight_decay: 0.01
+  kwargs: {}
+
+sched:
+  name: exponential
+  step: epoch
+  kwargs:
+    gamma: 0.95
+
+callbacks:
+  - name: early_stopping
+    kwargs:
+      monitor: val_auc
+      mode: max
+      patience: 5

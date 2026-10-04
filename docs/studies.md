@@ -564,6 +564,90 @@ without training anything.
 To be filled in once all subjects have been run. See the note above on why the
 table schema is deferred.
 
+### RUN-002: CE-stSENet, exponential LR
+
+#### Base Configuration
+
+`configs/full_dataset/run002.yaml` - `EXP-004-A` (CE-stSENet) adapted to the
+`RUN-001` full-dataset protocol: exponential LR decay (`sched.name: exponential`,
+`gamma: 0.95`), AdamW ($10^{-4}$), 50 epochs with early stopping (`patience: 5`),
+and `robust_norm` offline transform (since CE-stSENet performs internal Db4 wavelet
+decomposition on raw time windows).
+
+#### Scope
+
+Every subject of `data/BIDS_CHB-MIT` with preprocessed `_fd_5s_prex5` segments, one
+training/evaluation run per subject.
+
+#### Run
+
+```text
+python examples/scripts/run_full_dataset.py --config configs/full_dataset/run002.yaml
+```
+
+To run with the `torch-gpu` environment:
+
+```text
+conda run -n torch-gpu python examples/scripts/run_full_dataset.py --config configs/full_dataset/run002.yaml
+```
+
+Use `--skip-existing` to resume interrupted sweeps and `--dry-run` to preview the execution plan.
+
+#### Results
+
+Subjects `01`-`11` were run twice with the same training configuration (both
+before the fixes in `docs/reports/2026-10-04_pipeline_audit.md`; `amp` was not
+read then, so both trained in fp32, as `amp: false` in `run002.yaml` reproduces):
+
+- **chronological** (`runs/run002_ce_stsenet/`): the cv block of `run002.yaml`
+  (`outer_shuffle: false`, `inner_mode: per_event_strata`). `sub-05` crashed
+  (`inner_M=10` too large for a 34-window preictal event; `split_into_strata`
+  now clamps M with a warning instead).
+- **interictal shuffled** (`runs/run002_ce_stsenet_shuffle/`): `outer_shuffle: true`,
+  `inner_shuffle: true`, `inner_mode: split`. Only interictal windows are shuffled
+  across outer folds; every outer test fold still holds out one whole preictal
+  event, so this is *not* the window-level leakage of papers that report 80-90 %.
+
+Each row is the `none,none,1,0.5` variant of the subject's
+`analysis/variant_summary.csv` (no calibration, moving-average window 1,
+threshold 0.5), averaged over outer folds (one per preictal event). MA > 1
+variants are not reported: for the shuffled run they are inflated by the
+label-segmented moving average.
+
+`TPR = Sensitivity` (event-level: a preictal event counts as detected if any of its
+windows is positive)
+`FPR/h suppressed: Ignore positive predictions for 5 minutes after a detection`
+
+| Subject | AUC | F1 | TPR | FPR/h | FPR/h supp. | AUC | F1 | TPR | FPR/h | FPR/h supp. |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| | **chronological** | | | | | **interictal shuffled** | | | | |
+| `sub-01` | 0.8485 | 0.2801 | 1.000 | 77.24 | 6.12 | 0.8959 | 0.3120 | 1.000 | 9.79 | 5.29 |
+| `sub-02` | 0.6619 | 0.0773 | 1.000 | 28.12 | 4.35 | 0.7819 | 0.1047 | 1.000 | 8.35 | 4.48 |
+| `sub-03` | 0.6336 | 0.1285 | 0.600 | 52.52 | 3.81 | 0.6830 | 0.2312 | 0.400 | 5.10 | 3.40 |
+| `sub-04` | 0.4594 | 0.0019 | 1.000 | 91.86 | 6.84 | 0.5887 | 0.0067 | 0.667 | 47.19 | 9.15 |
+| `sub-05` | – | – | – | – | – | 0.6151 | 0.0456 | 0.800 | 46.78 | 9.15 |
+| `sub-06` | 0.5878 | 0.0991 | 1.000 | 115.07 | 8.18 | 0.6755 | 0.1381 | 1.000 | 187.75 | 11.32 |
+| `sub-07` | 0.6584 | 0.0747 | 1.000 | 21.49 | 4.35 | 0.7182 | 0.0887 | 1.000 | 21.09 | 7.56 |
+| `sub-08` | 0.8981 | 0.7278 | 1.000 | 109.98 | 2.65 | 0.9582 | 0.6309 | 1.000 | 29.29 | 8.43 |
+| `sub-09` | 0.4657 | 0.0160 | 0.750 | 49.39 | 5.92 | 0.5595 | 0.0291 | 0.750 | 26.37 | 7.66 |
+| `sub-10` | 0.7503 | 0.3097 | 0.857 | 53.50 | 5.49 | 0.8148 | 0.3439 | 0.714 | 23.58 | 7.82 |
+| `sub-11` | 0.7968 | 0.1269 | 1.000 | 15.05 | 4.32 | 0.8536 | 0.1899 | 1.000 | 6.93 | 4.35 |
+| **mean** | 0.6761 (n=10) | 0.1842 | 0.921 | 61.42 | 5.20 | 0.7404 (n=11) | 0.1928 | 0.848 | 37.48 | 7.15 |
+
+Notes:
+
+- Window F1 is computed at the natural test prevalence (0.5-11 % preictal, mean
+  3.2 %) with models trained on 1:1 undersampled data, so F1 is low even where AUC
+  is high. Class-balanced metrics (`balanced_*` columns, added after these runs)
+  are closer to what most papers report.
+- `sub-01` is BIDS `ses-01` (original chb01) **plus** `ses-02` (original chb21, same
+  patient 1.5 years later). Re-run after the fixes, chronological AUC is 0.815 on
+  both sessions but 0.962 on `ses-01` only (`data.kwargs: {sessions: ["ses-01"]}`);
+  papers' chb01 is `ses-01` only. See section 4f of the audit report.
+- The audit report (`docs/reports/2026-10-04_pipeline_audit.md`) has the
+  diagnosis of these numbers, a paper-style random-split control (AUC ≈ 1.0 on
+  sub-11 and chb01), and the comparison with published results.
+
 ---
 
 ## Model comparison
