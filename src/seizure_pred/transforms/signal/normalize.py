@@ -7,10 +7,14 @@ _ABS_FLOOR = 1e-12
 def _denominator(scale: torch.Tensor, eps: float, eps_mode: str) -> torch.Tensor:
     """Per-channel denominator for normalization.
 
-    "absolute": scale + eps (legacy; dominates for data stored in volts, ~1e-5).
-    "relative": scale + eps * ref, ref = median of the per-channel scales of the
-    window (clamped to a tiny floor so all-zero windows stay finite). The result
-    is invariant to the unit of the input (V vs uV).
+    "absolute" (default): scale + eps. For CHB-MIT data stored in volts (EEG std
+    ~2e-5) eps=1e-5 acts as an amplitude floor: it under-normalises quiet windows,
+    but it also stops flat / disconnected channels from being amplified.
+    "relative" (opt-in): scale + eps * ref, ref = median of the per-channel scales
+    of the window (clamped to a tiny floor so all-zero windows stay finite).
+    Unit-invariant (V vs uV), but it has NO amplitude floor when most channels of a
+    window are flat: on CHB-MIT sub-01 it produced values up to ~9e5, which overflow
+    fp16 under amp and made training NaN. Only use it on cleaned/clipped input.
     """
     if eps_mode == "absolute":
         return scale + eps
@@ -21,7 +25,7 @@ def _denominator(scale: torch.Tensor, eps: float, eps_mode: str) -> torch.Tensor
 
 
 class InstanceNormTransform:
-    def __init__(self, eps: float = 1e-5, eps_mode: str = "relative"):
+    def __init__(self, eps: float = 1e-5, eps_mode: str = "absolute"):
         if eps_mode not in ("relative", "absolute"):
             raise ValueError(f"eps_mode must be 'relative' or 'absolute', got {eps_mode!r}")
         self.eps = eps
@@ -46,7 +50,7 @@ class RobustNormTransform:
         self,
         eps: float = 1e-5,
         mad_scale: float = 1.4826,
-        eps_mode: str = "relative",
+        eps_mode: str = "absolute",
     ):
         if eps_mode not in ("relative", "absolute"):
             raise ValueError(f"eps_mode must be 'relative' or 'absolute', got {eps_mode!r}")

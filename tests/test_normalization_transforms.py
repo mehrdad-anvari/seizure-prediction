@@ -35,7 +35,7 @@ def test_normalization_is_unit_invariant_for_volts_scale_data(name):
     rng = np.random.default_rng(0)
     # CHB-MIT is stored in volts: per-channel std ~2e-5
     x = (rng.standard_normal((4, 1280)) * 2e-5).astype(np.float64)
-    transform = create_transform(name)
+    transform = create_transform(name, eps_mode="relative")
 
     out = transform(x)
 
@@ -52,11 +52,23 @@ def test_normalization_is_unit_invariant_for_volts_scale_data(name):
 
 @pytest.mark.parametrize("name", ["instance_norm", "robust_norm"])
 def test_normalization_zero_and_constant_input_stay_finite(name):
-    transform = create_transform(name)
+    transform = create_transform(name, eps_mode="relative")
     for x in (np.zeros((3, 64)), np.full((3, 64), 3e-5)):
         out = transform(x)
         assert np.isfinite(out).all()
         np.testing.assert_allclose(out, 0.0, atol=1e-6)
+
+
+@pytest.mark.parametrize("name", ["instance_norm", "robust_norm"])
+def test_default_eps_mode_is_absolute_and_bounds_flat_channels(name):
+    # Regression: most channels flat (MAD ~1e-10) + one spike must stay bounded.
+    rng = np.random.default_rng(2)
+    x = (rng.standard_normal((18, 640)) * 1e-10).astype(np.float32)
+    x[:2] = rng.standard_normal((2, 640)) * 2e-5
+    x[5, 100] = 1e-4
+    out = create_transform(name)(x)
+    assert np.isfinite(out).all()
+    assert np.abs(out).max() < 100
 
 
 def test_absolute_eps_mode_reproduces_legacy_behaviour():
