@@ -9,7 +9,9 @@ pipeline broken?
 the leakage that inflates published numbers, F1 is computed at ~3 % preictal
 prevalence, and the real bottleneck is recall on an unseen preictal event. When the
 leakage the papers have is reproduced (random window split), the same pipeline gives
-AUC 0.9997 / F1 0.92 on sub-11.
+AUC 0.9997 / F1 0.92 on sub-11. No training change tried so far (interictal
+oversampling, dropout, inner-fold mode) improves held-out-seizure performance
+consistently across subjects.
 
 All numbers below: calibration `none`, MA window 1, threshold 0.5 unless stated.
 "Balanced" metrics re-weight interictal windows so both classes have equal total
@@ -146,6 +148,28 @@ Deviation: the paper's 2 h post-ictal rule leaves chb11 with only one usable sei
 Our FPR/h counts every positive interictal window; the paper counts alarms, so
 FPR/h is not comparable. Window AUC is in line with the paper's CE-stSENet baseline.
 
+### 4e. Does the sub-11 gain generalise? (subjects 02, 08, 10, unshuffled)
+
+Same two configs as 4c (baseline vs interictal ×3 + dropout 0.3), new data
+`_fd_5s_prex5_intx3` for each subject. MA10 uses `--ma-segmentation time`.
+
+| sub | folds | run | AUC | bal F1 | bal recall | FPR/h | MA10 AUC | MA10 Sn | MA10 FPR/h (refractory) | old-code AUC |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 02 | 2 | baseline | 0.691 | 0.180 | 0.103 | 22.7 | 0.760 | 1.0 | 3.90 (0.32) | 0.662 |
+| 02 | 2 | int ×3 + drop | 0.659 | 0.157 | 0.089 | 23.2 | 0.706 | 0.5 | 4.07 (0.23) | |
+| 08 | 5 | baseline | 0.911 | 0.824 | 0.814 | 132.9 | 0.914 | 1.0 | 135.8 (2.35) | 0.898 |
+| 08 | 5 | int ×3 + drop | 0.915 | 0.890 | 0.920 | 133.3 | 0.931 | 1.0 | 136.9 (2.45) | |
+| 10 | 7 | baseline | 0.751 | 0.514 | 0.462 | 69.9 | 0.770 | 0.714 | 35.0 (1.77) | 0.750 |
+| 10 | 7 | int ×3 + drop | 0.768 | 0.520 | 0.496 | 74.5 | 0.787 | 0.714 | 46.7 (1.74) | |
+| 11 | 2 | baseline | 0.795 | 0.345 | 0.220 | 26.9 | 0.905 | 1.0 | 2.90 (0.39) | 0.797 |
+| 11 | 2 | int ×3 + drop | 0.861 | 0.475 | 0.326 | 27.2 | 0.960 | 1.0 | 2.71 (0.45) | |
+
+**The sub-11 gain does not generalise.** AUC changes are −0.03 / +0.004 / +0.02 on
+02 / 08 / 10, within per-fold noise (per-fold AUCs move in both directions, e.g. sub-10
+fold 0 0.27→0.49 but fold 6 0.49→0.33). Dropout did not reduce false positives elsewhere.
+The new-code baselines reproduce the old-code unshuffled run002 AUCs within ~0.03
+(the eps/AMP fixes did not materially change results). Run dirs: `runs/gen_{02,08,10}_{NS_A,NS_int_drop}/`.
+
 ## 5. Literature check (`papers/`, `../../li2020.pdf`, `../../Dynamic_Multi_Graph...pdf`)
 
 * High numbers come from window-level k-fold on overlapping windows with balanced test
@@ -160,10 +184,11 @@ FPR/h is not comparable. Window AUC is in line with the paper's CE-stSENet basel
 
 1. Report AUC, AUPRC, balanced metrics and *time-segmented* MA results; treat MA>1
    numbers from shuffle-mode runs as invalid.
-2. Interictal oversampling is the single most effective change found — see 4c for
-   whether it holds without interictal shuffling before adopting it for full runs.
-   Memory: ×3 on sub-11 is ~3.3 GB in RAM; large subjects (e.g. sub-04, 36k interictal)
-   would need ~5 GB+.
+2. Interictal oversampling (×3) + dropout 0.3 helped sub-11 but **not** subjects 02/08/10
+   (section 4e) — do not adopt it for full-dataset runs on this evidence. Per-subject
+   per-fold variance (AUC 0.27–1.0 across held-out seizures) dominates; comparisons need
+   many subjects. Memory for ×3: up to ~4.3 GB loaded (sub-10); larger subjects (01, 04,
+   07) were not tried.
 3. Preprocessing writes `event_stats.csv` without a suffix, and buffer settings are not
    encoded in the output suffix — two runs with different buffers overwrite each other.
 4. `transforms/registry.py` still maps `instance_norm_fix_std` to a class that no longer
@@ -175,8 +200,7 @@ FPR/h is not comparable. Window AUC is in line with the paper's CE-stSENet basel
 ## Artifacts
 
 Runs: `runs/run002fix_A_sub11`, `run002fix_B_sub11`, `run002fix_C_sub11_randomsplit`,
-`ablation_sub11_{A_repeat,intx3,dropout,strata}`, `ablation_sub11_noshuf_*`,
-`wang2023_ce_stsenet_sub11`. New data (sub-11 only):
-`processed_segments_fd_5s_prex5_intx3_float.npz`, `processed_segments_f_5s_pb{23,120}_float.npz`.
+`ablation_sub11_{A_repeat,intx3,dropout,strata}`, `ablation_sub11_noshuf_*`, `gen_{02,08,10}_*`,
+`wang2023_ce_stsenet_sub11`. New data: `processed_segments_fd_5s_prex5_intx3_float.npz` (subjects 02, 08, 10, 11), `processed_segments_f_5s_pb{23,120}_float.npz`.
 Incomplete run dir from a crashed attempt: `runs/ablation_sub11_intx3/<first stamp>` (only
 `split_0`, can be deleted).
